@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AudioPlayer } from "./audio-player";
 import {
   Form,
   FormControl,
@@ -28,6 +30,7 @@ type FormData = {
   title: string;
   text: string;
   voice: typeof AVAILABLE_VOICES[number];
+  generateArtwork: boolean;
 };
 
 interface TextToSpeechFormProps {
@@ -41,7 +44,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     defaultValues: {
       title: "",
       text: "",
-      voice: "alloy"
+      voice: "alloy",
+      generateArtwork: false
     }
   });
 
@@ -51,7 +55,6 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       return res.json();
     },
     onSuccess: () => {
-      form.reset();
       onSuccess();
       toast({
         title: "Success",
@@ -103,7 +106,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                 />
               </FormControl>
               <FormDescription>
-                Characters: {textLength} (Supports long text for extended audio generation)
+                Characters: {textLength} (Long text will be automatically split into chunks)
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -138,6 +141,27 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="generateArtwork"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>Generate Artwork</FormLabel>
+                <FormDescription>
+                  Use AI to create custom artwork based on the text content
+                </FormDescription>
+              </div>
+            </FormItem>
+          )}
+        />
+
         <Button
           type="submit"
           className="w-full"
@@ -145,6 +169,24 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         >
           {mutation.isPending ? "Converting..." : "Convert to Speech"}
         </Button>
+
+        {mutation.data && (
+          <div className="mt-6 space-y-4">
+            <AudioPlayer
+              src={mutation.data.audioUrl}
+              title={mutation.data.title}
+            />
+            {mutation.data.artworkUrl && (
+              <div className="mt-4">
+                <img
+                  src={mutation.data.artworkUrl}
+                  alt="Generated artwork"
+                  className="rounded-lg w-full max-w-md mx-auto"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </form>
     </Form>
   );
