@@ -30,7 +30,7 @@ export class ObjectStorage implements IStorage {
 
   private async loadFromStorage() {
     try {
-      const data = await this.client.download_from_text("audiofiles.json");
+      const data = await this.client.get_object_as_text("audiofiles.json");
       const files = JSON.parse(data);
       this.audioFiles = new Map(files.map((f: AudioFile) => [f.id, { ...f, createdAt: new Date(f.createdAt) }]));
       this.currentId = Math.max(...Array.from(this.audioFiles.keys()), 0) + 1;
@@ -43,7 +43,7 @@ export class ObjectStorage implements IStorage {
 
   private async saveToStorage() {
     const files = Array.from(this.audioFiles.values());
-    await this.client.upload_from_text("audiofiles.json", JSON.stringify(files));
+    await this.client.put_object_from_text("audiofiles.json", JSON.stringify(files));
   }
 
   async getAudioFiles(): Promise<AudioFile[]> {
