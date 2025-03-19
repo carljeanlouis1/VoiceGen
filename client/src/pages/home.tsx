@@ -5,9 +5,9 @@ import { queryClient } from "@/lib/queryClient";
 export default function Home() {
   return (
     <div className="container max-w-4xl py-8">
-      <Card>
+      <Card className="card-gradient shadow-lg">
         <CardHeader>
-          <CardTitle>Convert Text to Speech</CardTitle>
+          <CardTitle className="text-2xl">Convert Text to Speech</CardTitle>
         </CardHeader>
         <CardContent>
           <TextToSpeechForm

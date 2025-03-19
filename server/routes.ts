@@ -61,7 +61,7 @@ async function summarizeText(text: string): Promise<string> {
 async function generateArtwork(summary: string): Promise<string> {
   const response = await openai.images.generate({
     model: "dall-e-3",
-    prompt: `Create an artistic, abstract representation of this text: ${summary}. Make it modern, minimalist, and suitable as album artwork.`,
+    prompt: `Create an abstract, minimalist artistic representation that captures the essence and emotion of this concept, without any text or words: ${summary}. Use a modern, elegant style with a focus on shapes, colors, and composition. Make it suitable for album artwork.`,
     n: 1,
     size: "1024x1024",
     quality: "standard",

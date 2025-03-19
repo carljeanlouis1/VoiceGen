@@ -9,9 +9,11 @@ import Library from "@/pages/library";
 
 function Navbar() {
   return (
-    <nav className="border-b">
+    <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-50">
       <div className="container flex h-16 items-center justify-between">
-        <span className="text-xl font-bold">SonicScribe</span>
+        <span className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+          VoiceGen
+        </span>
         <div className="flex gap-4">
           <Button variant="ghost" asChild>
             <Link href="/">Convert</Link>
@@ -38,7 +40,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen">
         <Navbar />
         <Router />
       </div>
