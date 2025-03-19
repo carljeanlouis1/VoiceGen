@@ -73,121 +73,125 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const textLength = form.watch("text").length;
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
-        className="space-y-6"
-      >
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter a title..." {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="text"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Text</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Enter text to convert..."
-                  className="min-h-[200px]"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>
-                Characters: {textLength} (Long text will be automatically split into chunks)
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="voice"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Voice</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a voice" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {AVAILABLE_VOICES.map((voice) => (
-                    <SelectItem key={voice} value={voice}>
-                      {voice.charAt(0).toUpperCase() + voice.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="generateArtwork"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>Generate Artwork</FormLabel>
-                <FormDescription>
-                  Use AI to create custom artwork based on the text content
-                </FormDescription>
-              </div>
-            </FormItem>
-          )}
-        />
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={mutation.isPending}
+    <div className="space-y-8">
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
+          className="space-y-6"
         >
-          {mutation.isPending ? "Converting..." : "Convert to Speech"}
-        </Button>
-
-        {mutation.data && (
-          <div className="mt-6 space-y-4">
-            <AudioPlayer
-              src={mutation.data.audioUrl}
-              title={mutation.data.title}
-            />
-            {mutation.data.artworkUrl && (
-              <div className="mt-4">
-                <img
-                  src={mutation.data.artworkUrl}
-                  alt="Generated artwork"
-                  className="rounded-lg w-full max-w-md mx-auto"
-                />
-              </div>
+          <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Title</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter a title..." {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-          </div>
-        )}
-      </form>
-    </Form>
+          />
+
+          <FormField
+            control={form.control}
+            name="text"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Text</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Enter text to convert..."
+                    className="min-h-[200px]"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Characters: {textLength} (Long text will be automatically split into chunks)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="voice"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Voice</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a voice" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {AVAILABLE_VOICES.map((voice) => (
+                      <SelectItem key={voice} value={voice}>
+                        {voice.charAt(0).toUpperCase() + voice.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="generateArtwork"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Generate Artwork</FormLabel>
+                  <FormDescription>
+                    Use AI to create custom artwork based on the text content
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? "Converting..." : "Convert to Speech"}
+          </Button>
+        </form>
+      </Form>
+
+      {mutation.data && (
+        <div className="space-y-6 rounded-lg border p-6">
+          <h2 className="text-lg font-semibold">Generated Audio</h2>
+          <AudioPlayer
+            src={mutation.data.audioUrl}
+            title={mutation.data.title}
+          />
+          {mutation.data.artworkUrl && (
+            <div>
+              <h3 className="text-md font-medium mb-2">AI-Generated Artwork</h3>
+              <img
+                src={mutation.data.artworkUrl}
+                alt="Generated artwork"
+                className="rounded-lg w-full max-w-md mx-auto"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
