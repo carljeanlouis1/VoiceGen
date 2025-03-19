@@ -15,10 +15,17 @@ export class ObjectStorage implements IStorage {
   private currentId: number;
 
   constructor() {
-    this.client = new Client();
-    this.audioFiles = new Map();
-    this.currentId = 1;
-    this.loadFromStorage();
+    try {
+      this.client = new Client();
+      this.audioFiles = new Map();
+      this.currentId = 1;
+      this.loadFromStorage();
+    } catch (error) {
+      console.error("Failed to initialize storage:", error);
+      // Fallback to memory storage if object storage fails
+      this.audioFiles = new Map();
+      this.currentId = 1;
+    }
   }
 
   private async loadFromStorage() {
