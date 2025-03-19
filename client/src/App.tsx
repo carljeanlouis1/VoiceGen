@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Library from "@/pages/library";
+import Chat from "@/pages/chat";
 
 function Navbar() {
   return (
@@ -21,6 +22,9 @@ function Navbar() {
           <Button variant="ghost" asChild>
             <Link href="/library">Library</Link>
           </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/chat">Chat</Link>
+          </Button>
         </div>
       </div>
     </nav>
@@ -32,6 +36,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/library" component={Library} />
+      <Route path="/chat" component={Chat} />
       <Route component={NotFound} />
     </Switch>
   );

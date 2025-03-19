@@ -61,7 +61,7 @@ async function summarizeText(text: string): Promise<string> {
 async function generateArtwork(summary: string): Promise<string> {
   const response = await openai.images.generate({
     model: "dall-e-3",
-    prompt: `Create an abstract, minimalist artistic representation that captures the essence and emotion of this concept, without any text or words: ${summary}. Use a modern, elegant style with a focus on shapes, colors, and composition. Make it suitable for album artwork.`,
+    prompt: `Create an abstract, minimalist representation that evokes the emotional essence of this concept, making sure to EXCLUDE ANY TEXT, NUMBERS, OR TYPOGRAPHY: ${summary}. Focus purely on abstract shapes, colors, and visual composition to create an elegant, modern design suitable for album artwork. The artwork should be completely free of any written elements, focusing entirely on visual symbolism and artistic expression.`,
     n: 1,
     size: "1024x1024",
     quality: "standard",
@@ -141,6 +141,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error deleting audio file ${req.params.id}: ${error.message}`);
       res.status(500).json({ message: "Failed to delete audio file" });
+    }
+  });
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const schema = z.object({
+        messages: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string()
+        })),
+        context: z.string()
+      });
+
+      const { messages, context } = schema.parse(req.body);
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", 
+        messages: [
+          {
+            role: "system",
+            content: `You are Claude Sonnet 3.7, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`
+          },
+          ...messages
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      });
+
+      res.json({ response: response.choices[0].message.content });
+    } catch (error) {
+      log(`Error in chat endpoint: ${error.message}`);
+      res.status(500).json({ message: "Failed to process chat request" });
     }
   });
 
