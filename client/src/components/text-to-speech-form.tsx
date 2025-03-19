@@ -14,6 +14,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -57,14 +58,16 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         description: "Audio file created successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to convert text to speech. Please try again.",
         variant: "destructive",
       });
     },
   });
+
+  const textLength = form.watch("text").length;
 
   return (
     <Form {...form}>
@@ -99,6 +102,9 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                   {...field}
                 />
               </FormControl>
+              <FormDescription>
+                Characters: {textLength} (Supports long text for extended audio generation)
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

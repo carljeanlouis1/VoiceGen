@@ -11,9 +11,7 @@ function Navbar() {
   return (
     <nav className="border-b">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/">
-          <a className="text-xl font-bold">VoxCraft</a>
-        </Link>
+        <span className="text-xl font-bold">VoxCraft</span>
         <div className="flex gap-4">
           <Button variant="ghost" asChild>
             <Link href="/">Convert</Link>
