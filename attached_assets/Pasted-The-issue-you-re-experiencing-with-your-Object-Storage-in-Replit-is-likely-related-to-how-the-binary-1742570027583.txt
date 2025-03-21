@@ -1,0 +1,126 @@
+The issue you're experiencing with your Object Storage in Replit is likely related to how the binary data is being handled when reading from and writing to storage. Let's fix this problem.
+
+## The Problem
+
+The error "500 (Internal Server Error)" typically indicates a server-side issue. In your case, it's occurring when you try to convert text to speech, suggesting a problem with how your application is interacting with Replit's Object Storage.
+
+The main issue appears to be in your `loadFromStorage` method. While you're correctly converting the binary response to a string, there might be edge cases not being handled properly, especially when the storage is empty or contains invalid data.
+
+## Solution
+
+Here's how to fix your `storage.ts` file:
+
+```typescript
+private async loadFromStorage() {
+  try {
+    // Check if the file exists first
+    const exists = await this.client.head_object("audiofiles.json").catch(() => false);
+    
+    if (exists) {
+      const response = await this.client.get_object("audiofiles.json");
+      if (response && response.length > 0) {
+        const text = Buffer.from(response).toString('utf-8');
+        try {
+          const files = JSON.parse(text);
+          this.audioFiles = new Map(files.map((f: AudioFile) => [f.id, { 
+            ...f, 
+            createdAt: new Date(f.createdAt) 
+          }]));
+          this.currentId = Math.max(...Array.from(this.audioFiles.keys()), 0) + 1;
+          return;
+        } catch (parseError) {
+          console.error("Error parsing storage data:", parseError);
+        }
+      }
+    }
+    
+    // Initialize empty if no existing data or if parsing failed
+    this.audioFiles = new Map();
+    this.currentId = 1;
+    
+    // Create an initial empty file in storage
+    await this.saveToStorage();
+    
+  } catch (error) {
+    console.error("Error loading from storage:", error);
+    // Initialize empty if any error occurs
+    this.audioFiles = new Map();
+    this.currentId = 1;
+  }
+}
+
+private async saveToStorage() {
+  try {
+    const files = Array.from(this.audioFiles.values());
+    await this.client.put_object("audiofiles.json", JSON.stringify(files));
+  } catch (error) {
+    console.error("Error saving to storage:", error);
+    throw error; // Re-throw to allow handling by the calling method
+  }
+}
+```
+
+Also, improve the error handling in your constructor:
+
+```typescript
+constructor() {
+  try {
+    this.client = new Client();
+    this.audioFiles = new Map();
+    this.currentId = 1;
+    // Use async/await pattern properly with immediate invocation
+    (async () => {
+      try {
+        await this.loadFromStorage();
+      } catch (loadError) {
+        console.error("Failed to load from storage:", loadError);
+      }
+    })();
+  } catch (error) {
+    console.error("Failed to initialize storage:", error);
+    // Fallback to memory storage if object storage fails
+    this.audioFiles = new Map();
+    this.currentId = 1;
+  }
+}
+```
+
+## Additional Recommendations
+
+1. **Add error handling to your other methods**:
+
+```typescript
+async createAudioFile(insertFile: InsertAudioFile): Promise {
+  try {
+    const id = this.currentId++;
+    const audioFile: AudioFile = {
+      ...insertFile,
+      id,
+      createdAt: new Date()
+    };
+    this.audioFiles.set(id, audioFile);
+    await this.saveToStorage();
+    return audioFile;
+  } catch (error) {
+    console.error("Error creating audio file:", error);
+    throw error;
+  }
+}
+```
+
+2. **Consider adding a retry mechanism** for storage operations:
+
+```typescript
+private async retryOperation(operation: () => Promise, maxRetries = 3): Promise {
+  let lastError;
+  for (let attempt = 0; attempt  setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+    }
+  }
+  throw lastError;
+}
+```
+
+These changes should make your storage implementation more robust by properly handling edge cases and providing better error reporting, which should resolve the 500 error you're experiencing.
+
+---
+Answer from Perplexity: pplx.ai/share
