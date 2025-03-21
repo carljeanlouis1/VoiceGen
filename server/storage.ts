@@ -19,7 +19,6 @@ export class ObjectStorage implements IStorage {
       this.client = new Client();
       this.audioFiles = new Map();
       this.currentId = 1;
-      // Use async/await pattern with immediate invocation
       (async () => {
         try {
           await this.loadFromStorage();
@@ -29,7 +28,6 @@ export class ObjectStorage implements IStorage {
       })();
     } catch (error) {
       console.error("Failed to initialize storage:", error);
-      // Fallback to memory storage if object storage fails
       this.audioFiles = new Map();
       this.currentId = 1;
     }
@@ -37,37 +35,30 @@ export class ObjectStorage implements IStorage {
 
   private async loadFromStorage() {
     try {
-      // Check if the file exists first
-      const exists = await this.client.head("audiofiles.json").catch(() => false);
+      const response = await this.client.get_object("audiofiles.json");
       
-      if (exists) {
-        const response = await this.client.get("audiofiles.json");
-        if (response && response.length > 0) {
-          const text = Buffer.from(response).toString('utf-8');
-          try {
-            const files = JSON.parse(text);
-            this.audioFiles = new Map(files.map((f: AudioFile) => [f.id, { 
-              ...f, 
-              createdAt: new Date(f.createdAt) 
-            }]));
-            this.currentId = Math.max(...Array.from(this.audioFiles.keys()), 0) + 1;
-            return;
-          } catch (parseError) {
-            console.error("Error parsing storage data:", parseError);
-          }
-        }
+      let text;
+      if (response instanceof Buffer) {
+        text = response.toString('utf-8');
+      } else if (response instanceof Uint8Array) {
+        text = Buffer.from(response).toString('utf-8');
+      } else if (typeof response === 'string') {
+        text = response;
+      } else {
+        text = Buffer.from(response as any).toString('utf-8');
       }
       
-      // Initialize empty if no existing data or if parsing failed
-      this.audioFiles = new Map();
-      this.currentId = 1;
+      if (!text || text.trim() === '') {
+        this.audioFiles = new Map();
+        this.currentId = 1;
+        return;
+      }
       
-      // Create an initial empty file in storage
-      await this.saveToStorage();
-      
+      const files = JSON.parse(text);
+      this.audioFiles = new Map(files.map((f: AudioFile) => [f.id, { ...f, createdAt: new Date(f.createdAt) }]));
+      this.currentId = Math.max(...Array.from(this.audioFiles.keys()), 0) + 1;
     } catch (error) {
       console.error("Error loading from storage:", error);
-      // Initialize empty if any error occurs
       this.audioFiles = new Map();
       this.currentId = 1;
     }
@@ -76,10 +67,11 @@ export class ObjectStorage implements IStorage {
   private async saveToStorage() {
     try {
       const files = Array.from(this.audioFiles.values());
-      await this.client.put("audiofiles.json", JSON.stringify(files));
+      const jsonData = JSON.stringify(files);
+      await this.client.put_object("audiofiles.json", jsonData);
     } catch (error) {
       console.error("Error saving to storage:", error);
-      throw error;
+      throw new Error(`Failed to save to storage: ${error.message}`);
     }
   }
 
@@ -105,7 +97,7 @@ export class ObjectStorage implements IStorage {
       return audioFile;
     } catch (error) {
       console.error("Error creating audio file:", error);
-      throw error;
+      throw new Error(`Failed to create audio file: ${error.message}`);
     }
   }
 
