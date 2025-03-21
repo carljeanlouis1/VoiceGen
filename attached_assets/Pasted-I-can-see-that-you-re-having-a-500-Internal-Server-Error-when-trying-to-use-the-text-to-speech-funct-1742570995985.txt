@@ -1,0 +1,90 @@
+I can see that you're having a 500 Internal Server Error when trying to use the text-to-speech functionality in your Replit app. Let's investigate this issue and find a solution.
+
+The error appears to be related to how you're handling data in the Object Storage implementation. Looking at the code and the Replit assistant's suggestion, there's an issue with how you're parsing data when reading from the Object Storage.
+
+Let's fix the `loadFromStorage` method in your `storage.ts` file:
+
+```typescript
+private async loadFromStorage() {
+  try {
+    const response = await this.client.get_object("audiofiles.json");
+    
+    // The issue is here - we need to properly handle the response
+    // which may be in different formats depending on the Replit Object Storage implementation
+    let text;
+    if (response instanceof Buffer) {
+      text = response.toString('utf-8');
+    } else if (response instanceof Uint8Array) {
+      text = Buffer.from(response).toString('utf-8');
+    } else if (typeof response === 'string') {
+      text = response;
+    } else {
+      // If it's some other format, try to convert it
+      text = Buffer.from(response as any).toString('utf-8');
+    }
+    
+    // Check if the text is empty or not valid JSON
+    if (!text || text.trim() === '') {
+      // Initialize with empty array if no data
+      this.audioFiles = new Map();
+      this.currentId = 1;
+      return;
+    }
+    
+    const files = JSON.parse(text);
+    this.audioFiles = new Map(files.map((f: AudioFile) => [f.id, { ...f, createdAt: new Date(f.createdAt) }]));
+    this.currentId = Math.max(...Array.from(this.audioFiles.keys()), 0) + 1;
+  } catch (error) {
+    console.error("Error loading from storage:", error);
+    // Initialize empty if no existing data or error
+    this.audioFiles = new Map();
+    this.currentId = 1;
+  }
+}
+```
+
+Also, let's improve the error handling in the `saveToStorage` method:
+
+```typescript
+private async saveToStorage() {
+  try {
+    const files = Array.from(this.audioFiles.values());
+    const jsonData = JSON.stringify(files);
+    await this.client.put_object("audiofiles.json", jsonData);
+  } catch (error) {
+    console.error("Error saving to storage:", error);
+    throw new Error(`Failed to save to storage: ${error.message}`);
+  }
+}
+```
+
+Additionally, you should add more error logging in your `createAudioFile` method to help diagnose issues:
+
+```typescript
+async createAudioFile(insertFile: InsertAudioFile): Promise<AudioFile> {
+  try {
+    const id = this.currentId++;
+    const audioFile: AudioFile = {
+      ...insertFile,
+      id,
+      createdAt: new Date()
+    };
+    this.audioFiles.set(id, audioFile);
+    await this.saveToStorage();
+    return audioFile;
+  } catch (error) {
+    console.error("Error creating audio file:", error);
+    throw new Error(`Failed to create audio file: ${error.message}`);
+  }
+}
+```
+
+These changes should help handle the Object Storage data properly and provide better error information when things go wrong.
+
+If you're still having issues after making these changes, you might need to check:
+
+1. If your Replit has the proper environment variables set for OpenAI API access
+2. If there are permission issues with the Object Storage
+3. If there's a size limit being exceeded when storing large audio files
+
+Let me know if you need any clarification or if these changes help resolve your issue!
