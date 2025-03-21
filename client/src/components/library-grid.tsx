@@ -72,55 +72,6 @@ export function LibraryGrid() {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {audioFiles.map((file) => (
         <Card key={file.id}>
-          {file.artworkUrl && (
-            <div className="relative aspect-square">
-              <img
-                src={file.artworkUrl}
-                alt={`Artwork for ${file.title}`}
-                className="object-cover w-full h-full rounded-t-lg"
-              />
-            </div>
-          )}
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <h3 className="font-semibold">{file.title}</h3>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete audio file?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deleteMutation.mutate(file.id)}
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <AudioPlayer src={file.audioUrl} title={file.title} />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {audioFiles.map((file) => (
-        <Card key={file.id}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="font-semibold">{file.title}</div>
             <AlertDialog>
