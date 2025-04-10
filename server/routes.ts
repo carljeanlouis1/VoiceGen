@@ -1,12 +1,14 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
-import { textToSpeechSchema, MAX_CHUNK_SIZE } from "@shared/schema";
+import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
+import path from "path";
+import fs from "fs";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
@@ -80,7 +82,58 @@ async function generateArtwork(summary: string): Promise<string | undefined> {
   return response.data[0]?.url || "";
 }
 
+// Function to generate voice samples for all available voices
+async function generateVoiceSamples() {
+  const sampleDir = path.join(process.cwd(), 'public/samples');
+  const sampleText = "This is a sample of what this voice sounds like. It can be used for text-to-speech conversion.";
+  
+  // Create samples directory if it doesn't exist
+  if (!fs.existsSync(sampleDir)){
+    fs.mkdirSync(sampleDir, { recursive: true });
+  }
+  
+  // Generate samples for each voice
+  for (const voice of AVAILABLE_VOICES) {
+    const samplePath = path.join(sampleDir, `${voice}.mp3`);
+    
+    // Skip if sample already exists
+    if (fs.existsSync(samplePath)) {
+      log(`Sample for ${voice} voice already exists`);
+      continue;
+    }
+    
+    try {
+      log(`Generating sample for ${voice} voice...`);
+      const speech = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: voice as any,
+        input: sampleText
+      });
+      
+      const buffer = Buffer.from(await speech.arrayBuffer());
+      fs.writeFileSync(samplePath, buffer);
+      log(`Voice sample for ${voice} created at ${samplePath}`);
+    } catch (error: any) {
+      log(`Error generating sample for ${voice}: ${error.message}`);
+    }
+  }
+  
+  log("Voice samples generation completed");
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Generate voice samples
+  await generateVoiceSamples();
+  
+  // Serve static files from the public directory
+  app.use('/samples', (req: Request, res: Response) => {
+    const samplePath = path.join(process.cwd(), 'public', req.path);
+    if (fs.existsSync(samplePath)) {
+      res.sendFile(samplePath);
+    } else {
+      res.status(404).send('Sample not found');
+    }
+  });
   app.post("/api/text-to-speech", async (req, res) => {
     try {
       const data = textToSpeechSchema.parse(req.body);
@@ -209,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the query for debugging
       log(`Received search query: "${query}"`);
       
-      // Try using Perplexity first, fall back to Claude if needed
+      // Use only Perplexity API for web search - no fallback
       try {
         // Check if Perplexity API key is available
         if (!process.env.PERPLEXITY_API_KEY) {
@@ -221,7 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const apiKey = process.env.PERPLEXITY_API_KEY;
         log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
       
-        // Create request body exactly as in the documentation
+        // Create request body exactly as in the documentation, with corrected parameters
         const requestBody = {
           model: "sonar", // Use standard sonar model for web search
           messages: [
@@ -237,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           max_tokens: 1000,
           temperature: 0.2,
           top_p: 0.9,
-          search_domain_filter: ["<any>"],
+          // Remove search_domain_filter since it's causing validation errors
           return_images: false,
           return_related_questions: true,
           search_recency_filter: "month",
@@ -262,10 +315,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Log response status
         log(`Perplexity API response status: ${perplexityResponse.status}`);
       
+        // If there's an error, return it directly to the client without falling back
         if (!perplexityResponse.ok) {
           const errorText = await perplexityResponse.text();
           log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
-          throw new Error(`Perplexity API error: ${perplexityResponse.status} - ${errorText}`);
+          
+          // Return error to client instead of throwing
+          res.status(perplexityResponse.status).json({
+            error: `Perplexity API error: ${perplexityResponse.status}`,
+            message: `Failed to get web search results: ${errorText}`,
+            query
+          });
+          return;
         }
         
         const data = await perplexityResponse.json();
@@ -275,100 +336,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Full response logging for debugging (without any sensitive information)
         log(`Response data sample: ${JSON.stringify(data).substring(0, 300)}...`);
         
-        try {
-          // Extract content from the response
-          let answer = "";
-          let citations: string[] = [];
-          let relatedQuestions: string[] = [];
-          
-          // Extract the answer from the response according to the Perplexity API format
-          if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-            answer = data.choices[0].message.content || "";
-            log(`Answer extracted (first 100 chars): ${answer.substring(0, 100)}...`);
-          } else {
-            log('No choices or message content in response');
-          }
-          
-          // Extract citations if they exist in the correct format
-          if (data.citations && Array.isArray(data.citations)) {
-            citations = data.citations;
-            log(`Found ${citations.length} citations`);
-          } else if (data.links && Array.isArray(data.links)) {
-            // Alternative format some APIs might use
-            citations = data.links;
-            log(`Found ${citations.length} links (alternative to citations)`);
-          }
-          
-          // Extract related questions if they exist
-          if (data.related_questions && Array.isArray(data.related_questions)) {
-            relatedQuestions = data.related_questions;
-            log(`Found ${relatedQuestions.length} related questions`);
-          } else {
-            // Generate some related questions based on the topic
-            const queryWords = query.split(' ').filter(w => w.length > 3);
-            if (queryWords.length > 0) {
-              relatedQuestions = [
-                `What's the history of ${queryWords[0]}?`,
-                `How does ${queryWords[0]} impact society?`,
-                `Latest developments in ${queryWords[0]}`
-              ];
-              log('Generated fallback related questions');
-            }
-          }
-          
-          res.json({
-            answer,
-            citations,
-            related_questions: relatedQuestions
-          });
-        } catch (jsonError: any) {
-          log(`Error processing Perplexity response: ${jsonError?.message || 'Unknown error'}`);
-          throw new Error(`Failed to process Perplexity API response: ${jsonError?.message}`);
-        }
-      } catch (perplexityError: any) {
-        // Perplexity failed, try Claude as fallback
-        log(`Perplexity API failed: ${perplexityError?.message || "Unknown error"}`);
+        // Extract content from the response
+        let answer = "";
+        let citations: string[] = [];
+        let relatedQuestions: string[] = [];
         
-        if (!process.env.ANTHROPIC_API_KEY) {
-          throw new Error("Cannot use Claude fallback: ANTHROPIC_API_KEY is missing");
+        // Extract the answer from the response according to the Perplexity API format
+        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+          answer = data.choices[0].message.content || "";
+          log(`Answer extracted (first 100 chars): ${answer.substring(0, 100)}...`);
+        } else {
+          log('No choices or message content in response');
+          throw new Error("Unexpected Perplexity API response format: missing choices/message content");
         }
         
-        try {
-          log('Using Claude Sonnet as a fallback for web search');
-          
-          const response = await anthropic.messages.create({
-            model: "claude-3-7-sonnet-20250219",
-            max_tokens: 1000,
-            temperature: 0.7,
-            system: "You are a helpful AI assistant tasked with performing web searches. Respond as if you've searched the web for the user's query. Provide a detailed answer with information that appears accurate and up-to-date. Format your response in a clear, concise manner. When appropriate, include what appears to be current information.",
-            messages: [{ role: "user", content: query }]
-          });
-          
-          // Extract text content safely
-          const responseText = response.content[0].type === 'text' 
-            ? response.content[0].text 
-            : "Sorry, I couldn't process that request properly.";
-          
-          log('Successfully generated search results using Claude');
-          
-          // Create a response format similar to what Perplexity would return
-          res.json({
-            answer: responseText,
-            citations: [
-              "https://example.com/source1",
-              "https://example.com/source2"
-            ],
-            related_questions: [
-              `More about ${query}?`,
-              `What are the latest developments in ${query}?`,
-              `How does ${query} affect everyday life?`
-            ]
-          });
-          return;
-        } catch (claudeError: any) {
-          log(`Error using Claude fallback: ${claudeError?.message || "Unknown error"}`);
-          throw new Error("Failed to process search with both Perplexity and Claude");
+        // Extract citations if they exist in the correct format
+        if (data.citations && Array.isArray(data.citations)) {
+          citations = data.citations;
+          log(`Found ${citations.length} citations`);
+        } else if (data.links && Array.isArray(data.links)) {
+          // Alternative format some APIs might use
+          citations = data.links;
+          log(`Found ${citations.length} links (alternative to citations)`);
         }
+        
+        // Extract related questions if they exist
+        if (data.related_questions && Array.isArray(data.related_questions)) {
+          relatedQuestions = data.related_questions;
+          log(`Found ${relatedQuestions.length} related questions`);
+        } else {
+          // Generate some related questions based on the topic
+          const queryWords = query.split(' ').filter(w => w.length > 3);
+          if (queryWords.length > 0) {
+            relatedQuestions = [
+              `What's the history of ${queryWords[0]}?`,
+              `How does ${queryWords[0]} impact society?`,
+              `Latest developments in ${queryWords[0]}`
+            ];
+            log('Generated fallback related questions');
+          }
+        }
+        
+        res.json({
+          answer,
+          citations,
+          related_questions: relatedQuestions
+        });
+      } catch (error: any) {
+        // Log the error but don't fall back to Claude
+        log(`Perplexity API error: ${error?.message || "Unknown error"}`);
+        
+        // Return a clear error message to the client
+        res.status(500).json({
+          error: "Web search failed",
+          message: error?.message || "Failed to process web search request",
+          query
+        });
       }
     } catch (error: any) {
       log(`Error in search endpoint: ${error.message || "Unknown error"}`);
