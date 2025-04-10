@@ -258,28 +258,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.PERPLEXITY_API_KEY;
       log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
       
-      // Create request body based on Perplexity documentation
+      // Create request body exactly as in the documentation
       const requestBody = {
-        model: "sonar-pro", // Use sonar-pro for best web search results
+        model: "sonar", // Use standard sonar model for web search
         messages: [
           {
             role: "system",
-            content: "Be precise and concise. Search the web for accurate and up-to-date information."
+            content: "Be precise and concise. Provide accurate and up-to-date information."
           },
           {
             role: "user",
             content: query
           }
         ],
-        temperature: 0.2,
         max_tokens: 1000,
-        stream: false
+        temperature: 0.2,
+        top_p: 0.9,
+        search_domain_filter: ["<any>"],
+        return_images: false,
+        return_related_questions: true,
+        search_recency_filter: "month",
+        top_k: 0,
+        stream: false,
+        presence_penalty: 0,
+        frequency_penalty: 1,
+        web_search_options: { search_context_size: "high" }
       };
       
-      log('Attempting request to Perplexity API with model sonar-pro...');
+      log('Attempting request to Perplexity API with model sonar and web search...');
       const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
         headers: {
+          "Accept": "application/json",
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
@@ -299,35 +309,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       log('Successfully received response from Perplexity API');
       log(`Response data structure: ${Object.keys(data).join(', ')}`);
       
-      // Log a sample of the response for debugging
-      if (data.choices && data.choices.length > 0) {
-        log(`First choice content: ${data.choices[0].message.content.substring(0, 100)}...`);
-      }
+      // Full response logging for debugging (without any sensitive information)
+      log(`Response data sample: ${JSON.stringify(data).substring(0, 300)}...`);
       
-      // Extract citations if they exist
-      const citations = data.citations || [];
-      
-      // For related questions, we'll generate some based on the query if not provided
-      let relatedQuestions = [];
-      if (data.related_questions) {
-        relatedQuestions = data.related_questions;
-      } else {
-        // Generate some related questions based on the topic
-        const queryWords = query.split(' ').filter(w => w.length > 3);
-        if (queryWords.length > 0) {
-          relatedQuestions = [
-            `What's the history of ${queryWords[0]}?`,
-            `How does ${queryWords[0]} impact society?`,
-            `Latest developments in ${queryWords[0]}`
-          ];
+      try {
+        // Extract content from the response
+        let answer = "";
+        let citations: string[] = [];
+        let relatedQuestions: string[] = [];
+        
+        // Extract the answer from the response according to the Perplexity API format
+        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+          answer = data.choices[0].message.content || "";
+          log(`Answer extracted (first 100 chars): ${answer.substring(0, 100)}...`);
+        } else {
+          log('No choices or message content in response');
         }
+        
+        // Extract citations if they exist in the correct format
+        if (data.citations && Array.isArray(data.citations)) {
+          citations = data.citations;
+          log(`Found ${citations.length} citations`);
+        } else if (data.links && Array.isArray(data.links)) {
+          // Alternative format some APIs might use
+          citations = data.links;
+          log(`Found ${citations.length} links (alternative to citations)`);
+        }
+        
+        // Extract related questions if they exist
+        if (data.related_questions && Array.isArray(data.related_questions)) {
+          relatedQuestions = data.related_questions;
+          log(`Found ${relatedQuestions.length} related questions`);
+        } else {
+          // Generate some related questions based on the topic
+          const queryWords = query.split(' ').filter(w => w.length > 3);
+          if (queryWords.length > 0) {
+            relatedQuestions = [
+              `What's the history of ${queryWords[0]}?`,
+              `How does ${queryWords[0]} impact society?`,
+              `Latest developments in ${queryWords[0]}`
+            ];
+            log('Generated fallback related questions');
+          }
+        }
+        
+        res.json({
+          answer,
+          citations,
+          related_questions: relatedQuestions
+        });
+      } catch (jsonError: any) {
+        log(`Error processing Perplexity response: ${jsonError?.message || 'Unknown error'}`);
+        throw new Error(`Failed to process Perplexity API response: ${jsonError?.message}`);
       }
-      
-      res.json({
-        answer: data.choices[0].message.content,
-        citations: citations,
-        related_questions: relatedQuestions
-      });
     } catch (error: any) {
       log(`Error in search endpoint: ${error.message || "Unknown error"}`);
       
