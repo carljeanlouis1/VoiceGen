@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { textToSpeechSchema, MAX_CHUNK_SIZE } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
+import fetch from "node-fetch";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
@@ -39,7 +40,7 @@ async function generateSpeechChunks(text: string, voice: string) {
     const chunk = text.slice(currentIndex, chunkEnd);
     const speech = await openai.audio.speech.create({
       model: "tts-1",
-      voice,
+      voice: voice as any,
       input: chunk.trim()
     });
 
@@ -194,6 +195,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       log(`Error in chat endpoint: ${error.message || "Unknown error"}`);
       res.status(500).json({ message: "Failed to process chat request" });
+    }
+  });
+
+  app.post("/api/search", async (req, res) => {
+    try {
+      const schema = z.object({
+        query: z.string().min(1, "Query cannot be empty")
+      });
+
+      const { query } = schema.parse(req.body);
+      
+      // Check if Perplexity API key is available
+      if (!process.env.PERPLEXITY_API_KEY) {
+        throw new Error("PERPLEXITY_API_KEY environment variable is required");
+      }
+
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-sonar-small-128k-online",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that provides accurate and detailed information. Be precise and concise."
+            },
+            {
+              role: "user",
+              content: query
+            }
+          ],
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 1000,
+          stream: false,
+          search_domain_filter: [],
+          return_related_questions: true,
+          search_recency_filter: "month"
+        })
+      });
+
+      if (!perplexityResponse.ok) {
+        const errorText = await perplexityResponse.text();
+        throw new Error(`Perplexity API error: ${perplexityResponse.status} - ${errorText}`);
+      }
+
+      const data = await perplexityResponse.json();
+      
+      res.json({
+        answer: data.choices[0].message.content,
+        citations: data.citations || [],
+        related_questions: data.related_questions || []
+      });
+    } catch (error: any) {
+      log(`Error in search endpoint: ${error.message || "Unknown error"}`);
+      
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: error.errors[0].message });
+      } else {
+        res.status(500).json({ message: error.message || "Failed to process search request" });
+      }
     }
   });
 

@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Library from "@/pages/library";
 import Chat from "@/pages/chat";
+import Search from "@/pages/search";
 
 function Navbar() {
   return (
@@ -25,6 +26,9 @@ function Navbar() {
           <Button variant="ghost" asChild>
             <Link href="/chat">Chat</Link>
           </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/search">Search</Link>
+          </Button>
         </div>
       </div>
     </nav>
@@ -37,6 +41,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/library" component={Library} />
       <Route path="/chat" component={Chat} />
+      <Route path="/search" component={Search} />
       <Route component={NotFound} />
     </Switch>
   );
