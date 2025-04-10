@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, RotateCw } from "lucide-react";
+import { Play, Pause, RotateCcw, RotateCw, Download } from "lucide-react";
 
 interface AudioPlayerProps {
   src: string;
@@ -64,6 +64,16 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleDownload = () => {
+    // Create a temporary anchor element
+    const downloadLink = document.createElement('a');
+    downloadLink.href = src;
+    downloadLink.download = `${title.replace(/\s+/g, '_')}.mp3`; // Replace spaces with underscores for filename
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  };
+
   return (
     <div className="w-full space-y-2">
       <audio ref={audioRef} src={src} preload="metadata" />
@@ -106,6 +116,15 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
           onClick={() => skipTime(10)}
         >
           <RotateCw className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleDownload}
+          title="Download audio"
+        >
+          <Download className="h-4 w-4" />
         </Button>
       </div>
     </div>
