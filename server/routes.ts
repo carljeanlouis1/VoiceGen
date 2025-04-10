@@ -67,7 +67,7 @@ async function summarizeText(text: string): Promise<string> {
   return response.choices[0].message.content || "";
 }
 
-async function generateArtwork(summary: string): Promise<string> {
+async function generateArtwork(summary: string): Promise<string | undefined> {
   const response = await openai.images.generate({
     model: "dall-e-3",
     prompt: `Create an abstract, minimalist representation that evokes the emotional essence of this concept, making sure to EXCLUDE ANY TEXT, NUMBERS, OR TYPOGRAPHY: ${summary}. Focus purely on abstract shapes, colors, and visual composition to create an elegant, modern design suitable for album artwork. The artwork should be completely free of any written elements, focusing entirely on visual symbolism and artistic expression.`,
@@ -77,7 +77,7 @@ async function generateArtwork(summary: string): Promise<string> {
     response_format: "url"
   });
 
-  return response.data[0].url;
+  return response.data[0]?.url || "";
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
