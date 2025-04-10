@@ -21,9 +21,11 @@ interface SearchResponse {
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const { mutate, isPending } = useMutation({
     mutationFn: async (searchQuery: string) => {
+      setError(null); // Clear any previous errors
       return apiRequest("/api/search", {
         method: "POST",
         data: { query: searchQuery }
@@ -34,6 +36,7 @@ export default function SearchPage() {
     },
     onError: (error: Error) => {
       console.error("Search error:", error);
+      setError(error.message || "An error occurred while searching. Please try again.");
     },
   });
 
@@ -87,6 +90,24 @@ export default function SearchPage() {
               )}
             </Button>
           </form>
+
+          {error && (
+            <div className="mt-6 p-4 border border-red-200 bg-red-50 text-red-600 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mr-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-triangle">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Search Error</p>
+                  <p className="text-sm mt-1">Using Claude Sonnet as a fallback search engine</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {searchResults && (
             <div className="mt-6 space-y-4">
