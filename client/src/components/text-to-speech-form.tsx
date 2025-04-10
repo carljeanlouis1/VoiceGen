@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AudioPlayer } from "./audio-player";
-import { PlayIcon, StopIcon } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import {
   Form,
   FormControl,
@@ -41,6 +41,9 @@ interface TextToSpeechFormProps {
 
 export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const { toast } = useToast();
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
   const form = useForm<FormData>({
     resolver: zodResolver(textToSpeechSchema),
     defaultValues: {
@@ -53,7 +56,10 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const res = await apiRequest("POST", "/api/text-to-speech", data);
+      const res = await apiRequest("/api/text-to-speech", {
+        method: "POST",
+        data
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -73,6 +79,44 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   });
 
   const textLength = form.watch("text").length;
+  const selectedVoice = form.watch("voice");
+  
+  // Play/pause voice sample
+  const toggleVoiceSample = (voice: string) => {
+    if (playingVoice === voice) {
+      // Stop playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setPlayingVoice(null);
+    } else {
+      // Start playing a new voice
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      
+      const audio = new Audio(`/samples/${voice}.mp3`);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setPlayingVoice(null);
+      };
+      
+      audio.play().catch(err => {
+        console.error("Error playing audio sample:", err);
+        toast({
+          title: "Error",
+          description: "Failed to play voice sample. Please try again.",
+          variant: "destructive",
+        });
+        setPlayingVoice(null);
+      });
+      
+      setPlayingVoice(voice);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -122,23 +166,50 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Voice</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a voice" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
+                <div className="space-y-3">
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a voice" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {AVAILABLE_VOICES.map((voice) => (
+                        <SelectItem key={voice} value={voice}>
+                          {voice.charAt(0).toUpperCase() + voice.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Voice samples grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2 border rounded-md">
+                    <FormDescription className="col-span-full mb-2">
+                      Click to hear voice samples:
+                    </FormDescription>
                     {AVAILABLE_VOICES.map((voice) => (
-                      <SelectItem key={voice} value={voice}>
-                        {voice.charAt(0).toUpperCase() + voice.slice(1)}
-                      </SelectItem>
+                      <Button
+                        key={voice}
+                        type="button"
+                        variant={selectedVoice === voice ? "default" : "outline"}
+                        className={`flex items-center justify-between gap-2 ${
+                          selectedVoice === voice ? "border-2 border-primary" : ""
+                        }`}
+                        onClick={() => toggleVoiceSample(voice)}
+                      >
+                        <span className="capitalize">{voice}</span>
+                        {playingVoice === voice ? (
+                          <Square className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </Button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
