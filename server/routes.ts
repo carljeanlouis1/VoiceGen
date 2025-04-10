@@ -44,47 +44,85 @@ async function generateSpeechChunks(text: string, voice: string, onProgress?: (p
   
   log(`Starting speech generation for ${totalLength} characters with voice ${voice}`);
   
+  // Initial progress report
+  if (onProgress) {
+    log('Reporting initial 0% progress');
+    onProgress(0);
+  }
+  
   try {
+    // Process text in chunks
     while (currentIndex < totalLength) {
-      // Find the last period or newline in the chunk to avoid cutting mid-sentence
+      // Find a good breaking point for the chunk
       let chunkEnd = Math.min(currentIndex + MAX_CHUNK_SIZE, totalLength);
+      
+      // Try to find sentence breaks if not at the end
       if (chunkEnd < totalLength) {
-        const lastPeriod = text.lastIndexOf('.', chunkEnd);
-        const lastNewline = text.lastIndexOf('\n', chunkEnd);
-        const lastQuestion = text.lastIndexOf('?', chunkEnd);
-        const lastExclamation = text.lastIndexOf('!', chunkEnd);
+        // Search backwards from chunkEnd to find a good breaking point
+        const searchWindow = text.substring(currentIndex, chunkEnd);
         
-        // Find the latest sentence break
-        chunkEnd = Math.max(
-          lastPeriod !== -1 ? lastPeriod + 1 : currentIndex,
-          lastNewline !== -1 ? lastNewline + 1 : currentIndex,
-          lastQuestion !== -1 ? lastQuestion + 1 : currentIndex,
-          lastExclamation !== -1 ? lastExclamation + 1 : currentIndex,
-          // If no sentence breaks found, use a minimum chunk size
-          currentIndex + Math.min(1000, MAX_CHUNK_SIZE)
-        );
+        // Find the last sentence break in the window
+        const lastPeriodPos = searchWindow.lastIndexOf('.');
+        const lastNewlinePos = searchWindow.lastIndexOf('\n');
+        const lastQuestionPos = searchWindow.lastIndexOf('?');
+        const lastExclamationPos = searchWindow.lastIndexOf('!');
+        const lastSemicolonPos = searchWindow.lastIndexOf(';');
+        
+        // Get the positions relative to currentIndex
+        const sentenceBreaks = [
+          lastPeriodPos, 
+          lastNewlinePos, 
+          lastQuestionPos, 
+          lastExclamationPos,
+          lastSemicolonPos
+        ].filter(pos => pos !== -1);
+        
+        // If we found any sentence breaks, use the last one
+        if (sentenceBreaks.length > 0) {
+          // Get the position of the last break and add 1 to include the punctuation
+          const lastBreakPos = Math.max(...sentenceBreaks);
+          chunkEnd = currentIndex + lastBreakPos + 1;
+          log(`Found sentence break at position ${chunkEnd}`);
+        } else {
+          // Fallback: Try to break at a word boundary
+          const lastSpacePos = searchWindow.lastIndexOf(' ');
+          if (lastSpacePos !== -1 && lastSpacePos > searchWindow.length / 2) {
+            chunkEnd = currentIndex + lastSpacePos + 1;
+            log(`No sentence break found, using word boundary at ${chunkEnd}`);
+          } else {
+            // If all else fails, use at least 1000 chars or the max chunk size
+            chunkEnd = currentIndex + Math.min(1000, MAX_CHUNK_SIZE);
+            log(`No good breaks found, using minimum chunk size ending at ${chunkEnd}`);
+          }
+        }
       }
 
+      // Extract the chunk and process it
       const chunk = text.slice(currentIndex, chunkEnd);
-      log(`Processing chunk ${chunks.length + 1}: ${chunk.length} characters`);
+      log(`Processing chunk ${chunks.length + 1}: ${chunk.length} characters (${currentIndex} to ${chunkEnd})`);
       
       try {
+        // Attempt to generate speech for this chunk
         const speech = await openai.audio.speech.create({
           model: "tts-1",
           voice: voice as any,
           input: chunk.trim()
         });
 
+        // Store the generated audio
         const buffer = Buffer.from(await speech.arrayBuffer());
         chunks.push(buffer);
         
+        // Update the current position
         currentIndex = chunkEnd;
         
         // Calculate and report progress
         const progress = Math.floor((currentIndex / totalLength) * 100);
-        log(`Progress: ${progress}% (${currentIndex}/${totalLength} characters processed)`);
+        log(`Progress update: ${progress}% (${currentIndex}/${totalLength} characters processed)`);
         
+        // Report progress to callback if provided
         if (onProgress) {
+          log(`Calling onProgress with ${progress}%`);
           onProgress(progress);
         }
       } catch (error: any) {
@@ -93,8 +131,16 @@ async function generateSpeechChunks(text: string, voice: string, onProgress?: (p
       }
     }
 
+    // Combine all chunks into a single audio buffer
     const result = Buffer.concat(chunks);
     log(`Speech generation complete: ${result.length} bytes`);
+    
+    // Final progress report
+    if (onProgress) {
+      log('Reporting final 100% progress');
+      onProgress(100);
+    }
+    
     return result;
   } catch (error: any) {
     log(`Error in generateSpeechChunks: ${error.message}`);

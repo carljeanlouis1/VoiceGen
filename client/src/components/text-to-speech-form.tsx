@@ -72,25 +72,44 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   // Function to check job status
   const checkJobStatus = useCallback(async (jobId: number) => {
     try {
+      console.log(`Checking status for job ${jobId}...`);
+      
       const result = await apiRequest(`/api/text-to-speech/status/${jobId}`, {
         method: "GET"
       });
       
-      setProcessingJob(prev => ({
-        ...prev!,
-        status: result.status,
-        progress: result.progress,
-        error: result.error
-      }));
+      console.log(`Status for job ${jobId}:`, result);
       
-      // If complete, get the file and clear the interval
+      // Update the job state with the latest information
+      setProcessingJob(prev => {
+        if (!prev) return null;
+        
+        // Log the progress update
+        if (prev.progress !== result.progress) {
+          console.log(`Progress updated: ${prev.progress}% -> ${result.progress}%`);
+        }
+        
+        return {
+          ...prev,
+          status: result.status,
+          progress: result.progress,
+          error: result.error
+        };
+      });
+      
+      // If complete, get the file and clean up
       if (result.status === 'complete') {
+        console.log(`Job ${jobId} completed successfully!`);
+        
+        // Clear the polling interval
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
         
         if (result.audioUrl) {
+          console.log(`Audio URL received, length: ${result.audioUrl.length.toLocaleString()} chars`);
+          
           // Create audio file object with completed data
           const audioFile = { 
             id: jobId,
@@ -100,10 +119,11 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
             voice: form.getValues('voice')
           };
           
-          // Set the mutation data directly
+          // Set the mutation data directly and clear processing job
           (mutation as any)._state.data = audioFile;
+          setProcessingJob(null);
           
-          // Call onSuccess function
+          // Call onSuccess function and show toast
           onSuccess();
           
           toast({
@@ -112,13 +132,20 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           });
         }
       } 
-      // If error, show error toast and clear interval
+      // If error, show error toast and clean up
       else if (result.status === 'error') {
+        console.log(`Job ${jobId} failed with error: ${result.error}`);
+        
+        // Clear the polling interval
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
         
+        // Reset the processing job
+        setProcessingJob(null);
+        
+        // Show error toast
         toast({
           title: "Error",
           description: result.error || "Failed to convert text to speech",
@@ -127,21 +154,33 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       }
     } catch (error: any) {
       console.error("Error checking job status:", error);
+      toast({
+        title: "Connection Error",
+        description: "Unable to check processing status. Please try refreshing the page.",
+        variant: "destructive",
+      });
     }
-  }, [pollingInterval, toast, form]);
+  }, [pollingInterval, toast, form, onSuccess]);
 
   // Set up polling when a job is in progress
   useEffect(() => {
     if (processingJob && processingJob.status === 'processing' && !pollingInterval) {
-      // Poll every 3 seconds for job status
+      console.log(`Starting polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
+      
+      // First check immediately
+      checkJobStatus(processingJob.id);
+      
+      // Then poll every 2 seconds for job status (more frequent updates)
       const intervalId = window.setInterval(() => {
+        console.log(`Polling job ${processingJob.id} status...`);
         checkJobStatus(processingJob.id);
-      }, 3000);
+      }, 2000);
       
       setPollingInterval(intervalId);
       
       // Clean up on unmount
       return () => {
+        console.log(`Clearing polling interval for job ${processingJob.id}`);
         clearInterval(intervalId);
       };
     }
@@ -400,13 +439,39 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between text-sm mb-1">
-              <span>Progress: {processingJob.progress}%</span>
+              <span className="font-medium">Progress: {processingJob.progress}%</span>
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
                 <span>Estimated time: ~{processingJob.estimatedDuration ? Math.ceil(processingJob.estimatedDuration / 60) : '?'} mins</span>
               </div>
             </div>
-            <Progress value={processingJob.progress} className="w-full" />
+            <Progress value={processingJob.progress} className="w-full h-3" />
+            
+            {/* Visual progress indicator showing chunks */}
+            <div className="mt-4 border rounded-md p-3 bg-muted/20">
+              <div className="text-xs mb-2 text-muted-foreground">Processing steps:</div>
+              <div className="flex gap-1 flex-wrap">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const chunkProgress = i * 10;
+                  const isActive = processingJob.progress >= chunkProgress;
+                  const isProcessing = processingJob.progress >= chunkProgress && processingJob.progress < chunkProgress + 10;
+                  
+                  return (
+                    <div 
+                      key={i}
+                      className={`h-2 flex-1 rounded-sm ${
+                        isActive 
+                          ? isProcessing 
+                            ? 'bg-primary animate-pulse' 
+                            : 'bg-primary'
+                          : 'bg-muted'
+                      }`}
+                      title={`${chunkProgress}-${chunkProgress + 10}%`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
             <p className="text-sm text-muted-foreground mt-4">
               Please wait while we process your text. This may take several minutes for very long content.
               You'll be able to access the audio in your library when it's ready.
