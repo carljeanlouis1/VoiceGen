@@ -56,11 +56,11 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const res = await apiRequest("/api/text-to-speech", {
+      // apiRequest already returns parsed JSON, so we don't need to call .json() again
+      return apiRequest("/api/text-to-speech", {
         method: "POST",
         data
       });
-      return res.json();
     },
     onSuccess: () => {
       onSuccess();
