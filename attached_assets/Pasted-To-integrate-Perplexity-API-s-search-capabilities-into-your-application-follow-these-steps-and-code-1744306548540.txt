@@ -1,0 +1,112 @@
+To integrate Perplexity API's search capabilities into your application, follow these steps and code examples:
+
+**1. Setup & Authentication**
+- Generate an API key from [Perplexity's API Settings](https://docs.perplexity.ai/guides/getting-started)[4]
+- Install required packages:
+  ```bash
+  pip install openai  # For direct API access
+  pip install perplexipy  # For high-level Python wrapper[3]
+  ```
+
+**2. Basic Implementation**
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="https://api.perplexity.ai"
+)
+
+response = client.chat.completions.create(
+    model="sonar-pro",  # Best for complex queries[1][4]
+    messages=[
+        {"role": "system", "content": "Be precise and concise"},
+        {"role": "user", "content": "Explain quantum entanglement"}
+    ]
+)
+print(response.choices[0].message.content)
+```
+
+**3. Advanced Features**
+**Streaming Responses:**
+```python
+stream = client.chat.completions.create(
+    model="sonar-pro",
+    messages=[{"role": "user", "content": "Describe AI's impact on healthcare"}],
+    stream=True
+)
+
+for chunk in stream:
+    print(chunk.choices[0].delta.content, end="")
+```
+
+**Using PerplexiPy Wrapper:**
+```python
+from perplexipy import PerplexityClient
+
+client = PerplexityClient()
+result = client.query("Latest Mars rover discoveries")[3]
+```
+
+**4. Web Integration (React Example)**
+```javascript
+// Custom React hook
+async function perplexityQuery(prompt) {
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: "sonar-pro",
+      messages: [{role: "user", content: prompt}]
+    })
+  });
+  return response.json();
+}
+```
+
+**Key Parameters:**
+- `model`: Choose from `sonar-pro`, `sonar-small`, `codellama-34b`, etc.[1][4]
+- `temperature`: Control creativity (0-1)
+- `max_tokens`: Limit response length
+- `stream`: Enable real-time streaming[5]
+
+**Supported Models:**
+| Model | Best For | Web Access |
+|-------|----------|------------|
+| sonar-pro | Complex Q&A | Yes[1] |
+| codellama-34b | Code generation | No |
+| mistral-7b | General purpose | No |
+
+For production use, implement:
+- Error handling (rate limits, API errors)
+- Response caching
+- User authentication
+- Citation handling (access via `response.citations`)[5]
+
+**Note:** API pricing is credit-based, with different models having varying costs. Monitor usage through your Perplexity dashboard[4].
+
+Citations:
+[1] https://zuplo.com/blog/2025/03/28/perplexity-api
+[2] https://pipedream.com/apps/perplexity/integrations/google-search-console
+[3] https://pypi.org/project/PerplexiPy/
+[4] https://docs.perplexity.ai/guides/getting-started
+[5] https://docs.perplexity.ai/api-reference/chat-completions
+[6] https://www.perplexity.ai/hub/faq/pplx-api
+[7] https://www.youtube.com/watch?v=340cULpSpe0
+[8] https://www.postman.com/ai-engineer/generative-ai-large-language-model-apis/documentation/lrm4umz/perplexity-ai-api
+[9] https://community.openai.com/t/how-can-i-use-the-search-api/1003091
+[10] https://docs.perplexity.ai/home
+[11] https://www.youtube.com/watch?v=xzmqSXL0jRU
+[12] https://www.reddit.com/r/perplexity_ai/comments/1bkfc65/where_can_i_learn_how_to_use_api/
+[13] https://docs.perplexity.ai/guides/mcp-server
+[14] https://www.youtube.com/watch?v=PHEZ6AHR57w
+[15] https://pipedream.com/apps/perplexity
+[16] https://www.reddit.com/r/perplexity_ai/comments/1d1pgwr/how_to_perform_a_specific_web_search_with_the/
+[17] https://www.perplexity.ai/hub/blog/introducing-the-sonar-pro-api
+[18] https://community.pickaxeproject.com/t/ability-to-connect-perplexity-api/1825
+
+---
+Answer from Perplexity: pplx.ai/share

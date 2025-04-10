@@ -243,8 +243,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ]
           });
           return;
-        } catch (claudeError) {
-          log(`Error using Claude fallback: ${claudeError.message}`);
+        } catch (claudeError: any) {
+          log(`Error using Claude fallback: ${claudeError?.message || "Unknown error"}`);
           // Continue to try Perplexity if Claude fails
         }
       }
@@ -258,13 +258,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.PERPLEXITY_API_KEY;
       log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
       
-      // Create request body
+      // Create request body based on Perplexity documentation
       const requestBody = {
-        model: "llama-3.1-sonar-small-128k-online",
+        model: "sonar-pro", // Use sonar-pro for best web search results
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that provides accurate and detailed information. Be precise and concise."
+            content: "Be precise and concise. Search the web for accurate and up-to-date information."
           },
           {
             role: "user",
@@ -272,15 +272,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         ],
         temperature: 0.2,
-        top_p: 0.9,
         max_tokens: 1000,
-        stream: false,
-        search_domain_filter: [],
-        return_related_questions: true,
-        search_recency_filter: "month"
+        stream: false
       };
       
-      log('Attempting request to Perplexity API...');
+      log('Attempting request to Perplexity API with model sonar-pro...');
       const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
         headers: {
@@ -301,11 +297,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await perplexityResponse.json();
       log('Successfully received response from Perplexity API');
+      log(`Response data structure: ${Object.keys(data).join(', ')}`);
+      
+      // Log a sample of the response for debugging
+      if (data.choices && data.choices.length > 0) {
+        log(`First choice content: ${data.choices[0].message.content.substring(0, 100)}...`);
+      }
+      
+      // Extract citations if they exist
+      const citations = data.citations || [];
+      
+      // For related questions, we'll generate some based on the query if not provided
+      let relatedQuestions = [];
+      if (data.related_questions) {
+        relatedQuestions = data.related_questions;
+      } else {
+        // Generate some related questions based on the topic
+        const queryWords = query.split(' ').filter(w => w.length > 3);
+        if (queryWords.length > 0) {
+          relatedQuestions = [
+            `What's the history of ${queryWords[0]}?`,
+            `How does ${queryWords[0]} impact society?`,
+            `Latest developments in ${queryWords[0]}`
+          ];
+        }
+      }
       
       res.json({
         answer: data.choices[0].message.content,
-        citations: data.citations || [],
-        related_questions: data.related_questions || []
+        citations: citations,
+        related_questions: relatedQuestions
       });
     } catch (error: any) {
       log(`Error in search endpoint: ${error.message || "Unknown error"}`);
