@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -9,8 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { AudioPlayer } from "./audio-player";
-import { Play, Square } from "lucide-react";
+import { Play, Square, Loader2, Clock } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -43,6 +51,13 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const { toast } = useToast();
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [processingJob, setProcessingJob] = useState<{
+    id: number;
+    status: string;
+    progress: number;
+    estimatedDuration?: number;
+  } | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
   
   const form = useForm<FormData>({
     resolver: zodResolver(textToSpeechSchema),
@@ -54,22 +69,132 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     }
   });
 
+  // Function to check job status
+  const checkJobStatus = useCallback(async (jobId: number) => {
+    try {
+      const result = await apiRequest(`/api/text-to-speech/status/${jobId}`, {
+        method: "GET"
+      });
+      
+      setProcessingJob(prev => ({
+        ...prev!,
+        status: result.status,
+        progress: result.progress,
+        error: result.error
+      }));
+      
+      // If complete, get the file and clear the interval
+      if (result.status === 'complete') {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        
+        if (result.audioUrl) {
+          // Create audio file object with completed data
+          const audioFile = { 
+            id: jobId,
+            title: form.getValues('title'),
+            audioUrl: result.audioUrl,
+            text: form.getValues('text'),
+            voice: form.getValues('voice')
+          };
+          
+          // Set the mutation data directly
+          (mutation as any)._state.data = audioFile;
+          
+          // Call onSuccess function
+          onSuccess();
+          
+          toast({
+            title: "Success",
+            description: "Audio file created successfully",
+          });
+        }
+      } 
+      // If error, show error toast and clear interval
+      else if (result.status === 'error') {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        
+        toast({
+          title: "Error",
+          description: result.error || "Failed to convert text to speech",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error checking job status:", error);
+    }
+  }, [pollingInterval, toast, form]);
+
+  // Set up polling when a job is in progress
+  useEffect(() => {
+    if (processingJob && processingJob.status === 'processing' && !pollingInterval) {
+      // Poll every 3 seconds for job status
+      const intervalId = window.setInterval(() => {
+        checkJobStatus(processingJob.id);
+      }, 3000);
+      
+      setPollingInterval(intervalId);
+      
+      // Clean up on unmount
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [processingJob, pollingInterval, checkJobStatus]);
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       // apiRequest already returns parsed JSON, so we don't need to call .json() again
-      return apiRequest("/api/text-to-speech", {
+      const response = await apiRequest("/api/text-to-speech", {
         method: "POST",
         data
       });
+      
+      // Check if this is a background job
+      if (response.status === 'processing') {
+        setProcessingJob({
+          id: response.id,
+          status: response.status,
+          progress: response.progress || 0,
+          estimatedDuration: response.estimatedDuration
+        });
+        
+        // For background jobs, immediately return to prevent mutation.onSuccess
+        throw new Error("BACKGROUND_JOB_STARTED");
+      }
+      
+      // For regular jobs, return the response normally
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       onSuccess();
       toast({
         title: "Success",
         description: "Audio file created successfully",
       });
+      
+      // Clear any processing job state
+      setProcessingJob(null);
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
     },
     onError: (error: Error) => {
+      // Special case for background jobs
+      if (error.message === "BACKGROUND_JOB_STARTED") {
+        toast({
+          title: "Processing Started",
+          description: "Your text is being converted in the background. This may take a few minutes for long texts.",
+        });
+        return;
+      }
+      
       toast({
         title: "Error",
         description: error.message || "Failed to convert text to speech. Please try again.",
@@ -261,6 +386,36 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         </form>
       </Form>
 
+      {/* Background processing status */}
+      {processingJob && processingJob.status === 'processing' && (
+        <Card className="my-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Processing Long Text
+            </CardTitle>
+            <CardDescription>
+              Converting {form.getValues('text').length.toLocaleString()} characters to speech with {form.getValues('voice')} voice
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span>Progress: {processingJob.progress}%</span>
+              <div className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                <span>Estimated time: ~{processingJob.estimatedDuration ? Math.ceil(processingJob.estimatedDuration / 60) : '?'} mins</span>
+              </div>
+            </div>
+            <Progress value={processingJob.progress} className="w-full" />
+            <p className="text-sm text-muted-foreground mt-4">
+              Please wait while we process your text. This may take several minutes for very long content.
+              You'll be able to access the audio in your library when it's ready.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Completed audio */}
       {mutation.data && (
         <div className="space-y-6 rounded-lg border p-6">
           <h2 className="text-lg font-semibold">Generated Audio</h2>

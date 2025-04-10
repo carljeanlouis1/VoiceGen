@@ -23,34 +23,163 @@ if (!process.env.ANTHROPIC_API_KEY) {
   throw new Error("ANTHROPIC_API_KEY environment variable is required");
 }
 
-async function generateSpeechChunks(text: string, voice: string) {
+// Holds in-memory processing state for each job
+const processingJobs = new Map<number, {
+  id: number;
+  status: 'processing' | 'complete' | 'error';
+  progress: number;
+  chunks: Buffer[];
+  totalChunks: number;
+  audioUrl?: string;
+  error?: string;
+}>();
+
+// Generate unique job IDs
+let nextJobId = 1;
+
+async function generateSpeechChunks(text: string, voice: string, onProgress?: (progress: number) => void) {
   const chunks = [];
   let currentIndex = 0;
+  const totalLength = text.length;
+  
+  log(`Starting speech generation for ${totalLength} characters with voice ${voice}`);
+  
+  try {
+    while (currentIndex < totalLength) {
+      // Find the last period or newline in the chunk to avoid cutting mid-sentence
+      let chunkEnd = Math.min(currentIndex + MAX_CHUNK_SIZE, totalLength);
+      if (chunkEnd < totalLength) {
+        const lastPeriod = text.lastIndexOf('.', chunkEnd);
+        const lastNewline = text.lastIndexOf('\n', chunkEnd);
+        const lastQuestion = text.lastIndexOf('?', chunkEnd);
+        const lastExclamation = text.lastIndexOf('!', chunkEnd);
+        
+        // Find the latest sentence break
+        chunkEnd = Math.max(
+          lastPeriod !== -1 ? lastPeriod + 1 : currentIndex,
+          lastNewline !== -1 ? lastNewline + 1 : currentIndex,
+          lastQuestion !== -1 ? lastQuestion + 1 : currentIndex,
+          lastExclamation !== -1 ? lastExclamation + 1 : currentIndex,
+          // If no sentence breaks found, use a minimum chunk size
+          currentIndex + Math.min(1000, MAX_CHUNK_SIZE)
+        );
+      }
 
-  while (currentIndex < text.length) {
-    // Find the last period or newline in the chunk to avoid cutting mid-sentence
-    let chunkEnd = Math.min(currentIndex + MAX_CHUNK_SIZE, text.length);
-    if (chunkEnd < text.length) {
-      const lastPeriod = text.lastIndexOf('.', chunkEnd);
-      const lastNewline = text.lastIndexOf('\n', chunkEnd);
-      chunkEnd = Math.max(
-        lastPeriod !== -1 ? lastPeriod + 1 : chunkEnd,
-        lastNewline !== -1 ? lastNewline + 1 : chunkEnd
-      );
+      const chunk = text.slice(currentIndex, chunkEnd);
+      log(`Processing chunk ${chunks.length + 1}: ${chunk.length} characters`);
+      
+      try {
+        const speech = await openai.audio.speech.create({
+          model: "tts-1",
+          voice: voice as any,
+          input: chunk.trim()
+        });
+
+        const buffer = Buffer.from(await speech.arrayBuffer());
+        chunks.push(buffer);
+        
+        currentIndex = chunkEnd;
+        
+        // Calculate and report progress
+        const progress = Math.floor((currentIndex / totalLength) * 100);
+        log(`Progress: ${progress}% (${currentIndex}/${totalLength} characters processed)`);
+        
+        if (onProgress) {
+          onProgress(progress);
+        }
+      } catch (error: any) {
+        log(`Error processing chunk: ${error.message}`);
+        throw new Error(`Failed to process text chunk: ${error.message}`);
+      }
     }
 
-    const chunk = text.slice(currentIndex, chunkEnd);
-    const speech = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: voice as any,
-      input: chunk.trim()
-    });
-
-    chunks.push(await speech.arrayBuffer());
-    currentIndex = chunkEnd;
+    const result = Buffer.concat(chunks);
+    log(`Speech generation complete: ${result.length} bytes`);
+    return result;
+  } catch (error: any) {
+    log(`Error in generateSpeechChunks: ${error.message}`);
+    throw error;
   }
+}
 
-  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk)));
+// Process long text in the background
+async function startBackgroundProcessing(data: any): Promise<number> {
+  const jobId = nextJobId++;
+  
+  // Initialize job state
+  processingJobs.set(jobId, {
+    id: jobId,
+    status: 'processing',
+    progress: 0,
+    chunks: [],
+    totalChunks: Math.ceil(data.text.length / MAX_CHUNK_SIZE)
+  });
+  
+  // Start processing in the background
+  (async () => {
+    try {
+      log(`Starting background job #${jobId} for ${data.text.length} characters`);
+      
+      // Generate optional summary and artwork if requested
+      let summary: string | undefined;
+      let artworkUrl: string | undefined;
+
+      if (data.generateArtwork) {
+        log(`Job #${jobId}: Generating summary and artwork`);
+        summary = await summarizeText(data.text);
+        artworkUrl = await generateArtwork(summary || "");
+      }
+      
+      // Process audio chunks with progress tracking
+      const audioBuffer = await generateSpeechChunks(
+        data.text, 
+        data.voice,
+        (progress) => {
+          const job = processingJobs.get(jobId);
+          if (job) {
+            job.progress = progress;
+            processingJobs.set(jobId, job);
+          }
+        }
+      );
+
+      // Create data URL for audio
+      const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
+      
+      // Save to storage
+      const audioFile = await storage.createAudioFile({
+        title: data.title,
+        text: data.text,
+        voice: data.voice,
+        audioUrl,
+        duration: Math.ceil(audioBuffer.length / 16000), // Approximate duration
+        summary,
+        artworkUrl
+      });
+      
+      // Update job with completion info
+      const job = processingJobs.get(jobId);
+      if (job) {
+        job.status = 'complete';
+        job.progress = 100;
+        job.audioUrl = audioUrl;
+        processingJobs.set(jobId, job);
+      }
+      
+      log(`Background job #${jobId} completed successfully`);
+    } catch (error: any) {
+      log(`Error in background job #${jobId}: ${error.message}`);
+      
+      const job = processingJobs.get(jobId);
+      if (job) {
+        job.status = 'error';
+        job.error = error.message;
+        processingJobs.set(jobId, job);
+      }
+    }
+  })();
+  
+  return jobId;
 }
 
 async function summarizeText(text: string): Promise<string> {
@@ -149,39 +278,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(404).json({ error: 'Sample file not found' });
     }
   });
+  // Endpoint to process text-to-speech requests
   app.post("/api/text-to-speech", async (req, res) => {
     try {
       const data = textToSpeechSchema.parse(req.body);
+      const textLength = data.text.length;
 
-      log(`Converting text to speech: ${data.title} (${data.text.length} characters)`);
+      log(`Converting text to speech: ${data.title} (${textLength} characters)`);
 
-      // Generate summary and artwork if requested
-      let summary: string | undefined;
-      let artworkUrl: string | undefined;
+      // For short texts (under 5000 chars), process synchronously 
+      if (textLength <= 5000) {
+        // Generate summary and artwork if requested
+        let summary: string | undefined;
+        let artworkUrl: string | undefined;
 
-      if (data.generateArtwork) {
-        log("Generating summary and artwork");
-        summary = await summarizeText(data.text);
-        artworkUrl = await generateArtwork(summary || "");
+        if (data.generateArtwork) {
+          log("Generating summary and artwork");
+          summary = await summarizeText(data.text);
+          artworkUrl = await generateArtwork(summary || "");
+        }
+
+        // Generate speech in chunks if needed
+        log("Generating speech audio");
+        const audioBuffer = await generateSpeechChunks(data.text, data.voice);
+        const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
+
+        const audioFile = await storage.createAudioFile({
+          title: data.title,
+          text: data.text,
+          voice: data.voice,
+          audioUrl,
+          duration: Math.ceil(audioBuffer.length / 16000), // Approximate duration
+          summary,
+          artworkUrl
+        });
+
+        log(`Audio file created: ${audioFile.id}`);
+        res.json(audioFile);
+      } 
+      // For longer texts, use background processing
+      else {
+        log(`Text length ${textLength} exceeds threshold, using background processing`);
+        // Start background job and return job ID
+        const jobId = await startBackgroundProcessing(data);
+        
+        res.json({
+          id: jobId,
+          title: data.title,
+          status: 'processing',
+          progress: 0,
+          estimatedDuration: Math.ceil(textLength / 25), // Rough estimate of seconds
+          message: `Processing ${textLength} characters in the background`
+        });
       }
-
-      // Generate speech in chunks if needed
-      log("Generating speech audio");
-      const audioBuffer = await generateSpeechChunks(data.text, data.voice);
-      const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
-
-      const audioFile = await storage.createAudioFile({
-        title: data.title,
-        text: data.text,
-        voice: data.voice,
-        audioUrl,
-        duration: Math.ceil(audioBuffer.length / 16000), // Approximate duration
-        summary,
-        artworkUrl
-      });
-
-      log(`Audio file created: ${audioFile.id}`);
-      res.json(audioFile);
     } catch (error: any) {
       log(`Error in text-to-speech: ${error.message}`);
 
@@ -198,6 +347,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     }
+  });
+  
+  // Endpoint to check job status
+  app.get("/api/text-to-speech/status/:jobId", (req, res) => {
+    const jobId = parseInt(req.params.jobId);
+    
+    if (isNaN(jobId)) {
+      return res.status(400).json({ message: "Invalid job ID" });
+    }
+    
+    const job = processingJobs.get(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    
+    // Return job status
+    res.json({
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      error: job.error,
+      audioUrl: job.status === 'complete' ? job.audioUrl : undefined
+    });
   });
 
   app.get("/api/library", async (_req, res) => {
