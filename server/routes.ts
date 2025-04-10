@@ -1,15 +1,23 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { textToSpeechSchema, MAX_CHUNK_SIZE } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 
 const openai = new OpenAI();
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
+});
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY environment variable is required");
+}
+
+if (!process.env.ANTHROPIC_API_KEY) {
+  throw new Error("ANTHROPIC_API_KEY environment variable is required");
 }
 
 async function generateSpeechChunks(text: string, voice: string) {
@@ -85,7 +93,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (data.generateArtwork) {
         log("Generating summary and artwork");
         summary = await summarizeText(data.text);
-        artworkUrl = await generateArtwork(summary);
+        artworkUrl = await generateArtwork(summary || "");
       }
 
       // Generate speech in chunks if needed
@@ -105,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       log(`Audio file created: ${audioFile.id}`);
       res.json(audioFile);
-    } catch (error) {
+    } catch (error: any) {
       log(`Error in text-to-speech: ${error.message}`);
 
       if (error instanceof z.ZodError) {
@@ -127,8 +135,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const files = await storage.getAudioFiles();
       res.json(files);
-    } catch (error) {
-      log(`Error fetching library: ${error.message}`);
+    } catch (error: any) {
+      log(`Error fetching library: ${error.message || "Unknown error"}`);
       res.status(500).json({ message: "Failed to fetch library" });
     }
   });
@@ -138,8 +146,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       await storage.deleteAudioFile(id);
       res.status(204).send();
-    } catch (error) {
-      log(`Error deleting audio file ${req.params.id}: ${error.message}`);
+    } catch (error: any) {
+      log(`Error deleting audio file ${req.params.id}: ${error.message || "Unknown error"}`);
       res.status(500).json({ message: "Failed to delete audio file" });
     }
   });
@@ -156,22 +164,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { messages, context } = schema.parse(req.body);
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o", 
-        messages: [
-          {
-            role: "system",
-            content: `You are Claude Sonnet 3.7, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`
-          },
-          ...messages
-        ],
+      // Convert messages to Claude format
+      const claudeMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      // Add system message with context
+      const systemMessage = {
+        role: "system" as const,
+        content: `You are Claude Sonnet 3.7, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`
+      };
+
+      // Create Claude API request
+      const response = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219", // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
+        max_tokens: 1000,
         temperature: 0.7,
-        max_tokens: 500
+        system: systemMessage.content,
+        messages: claudeMessages
       });
 
-      res.json({ response: response.choices[0].message.content });
-    } catch (error) {
-      log(`Error in chat endpoint: ${error.message}`);
+      // Extract text content safely
+      const responseText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : "Sorry, I couldn't process that request properly.";
+        
+      res.json({ response: responseText });
+    } catch (error: any) {
+      log(`Error in chat endpoint: ${error.message || "Unknown error"}`);
       res.status(500).json({ message: "Failed to process chat request" });
     }
   });
