@@ -82,39 +82,52 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const selectedVoice = form.watch("voice");
   
   // Play/pause voice sample
-  const toggleVoiceSample = (voice: string) => {
-    if (playingVoice === voice) {
-      // Stop playing
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-      setPlayingVoice(null);
-    } else {
-      // Start playing a new voice
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-      
-      const audio = new Audio(`/samples/${voice}.mp3`);
-      audioRef.current = audio;
-      
-      audio.onended = () => {
+  const toggleVoiceSample = async (voice: string) => {
+    try {
+      if (playingVoice === voice) {
+        // Stop playing
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
         setPlayingVoice(null);
-      };
-      
-      audio.play().catch(err => {
-        console.error("Error playing audio sample:", err);
-        toast({
-          title: "Error",
-          description: "Failed to play voice sample. Please try again.",
-          variant: "destructive",
-        });
-        setPlayingVoice(null);
+      } else {
+        // Start playing a new voice
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        
+        // Show loading state
+        setPlayingVoice("loading");
+        
+        // Fetch the voice sample from our API endpoint
+        const response = await fetch(`/api/voice-samples/${voice}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load voice sample: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        const audio = new Audio(data.audioUrl);
+        audioRef.current = audio;
+        
+        audio.onended = () => {
+          setPlayingVoice(null);
+        };
+        
+        await audio.play();
+        setPlayingVoice(voice);
+      }
+    } catch (err) {
+      console.error("Error playing audio sample:", err);
+      toast({
+        title: "Error",
+        description: "Failed to play voice sample. Please try again.",
+        variant: "destructive",
       });
-      
-      setPlayingVoice(voice);
+      setPlayingVoice(null);
     }
   };
 
@@ -201,7 +214,9 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                         onClick={() => toggleVoiceSample(voice)}
                       >
                         <span className="capitalize">{voice}</span>
-                        {playingVoice === voice ? (
+                        {playingVoice === "loading" ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        ) : playingVoice === voice ? (
                           <Square className="h-4 w-4" />
                         ) : (
                           <Play className="h-4 w-4" />

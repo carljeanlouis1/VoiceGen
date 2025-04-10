@@ -125,13 +125,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate voice samples
   await generateVoiceSamples();
   
-  // Serve static files from the public directory
-  app.use('/samples', (req: Request, res: Response) => {
-    const samplePath = path.join(process.cwd(), 'public', req.path);
+  // Create a dedicated API endpoint for voice samples
+  app.get('/api/voice-samples/:voice', async (req: Request, res: Response) => {
+    const voice = req.params.voice;
+    if (!AVAILABLE_VOICES.includes(voice as any)) {
+      return res.status(404).json({ error: 'Voice not found' });
+    }
+    
+    const samplePath = path.join(process.cwd(), 'public/samples', `${voice}.mp3`);
+    log(`Serving voice sample: ${samplePath}`);
+    
     if (fs.existsSync(samplePath)) {
-      res.sendFile(samplePath);
+      // Read the file and serve it as a base64 data URL
+      const audioBuffer = fs.readFileSync(samplePath);
+      const audioBase64 = audioBuffer.toString('base64');
+      const dataUrl = `data:audio/mp3;base64,${audioBase64}`;
+      
+      res.json({ 
+        voice,
+        audioUrl: dataUrl
+      });
     } else {
-      res.status(404).send('Sample not found');
+      res.status(404).json({ error: 'Sample file not found' });
     }
   });
   app.post("/api/text-to-speech", async (req, res) => {
@@ -280,14 +295,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messages: [
             {
               role: "system",
-              content: "Be precise and concise. Provide accurate and up-to-date information from the web."
+              content: "You are a comprehensive web search assistant. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity."
             },
             {
               role: "user",
               content: query
             }
           ],
-          max_tokens: 1000,
+          max_tokens: 4000, // Increased to allow for longer, more detailed responses
           temperature: 0.2,
           top_p: 0.9,
           // Remove search_domain_filter since it's causing validation errors
