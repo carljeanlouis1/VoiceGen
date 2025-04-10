@@ -209,10 +209,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the query for debugging
       log(`Received search query: "${query}"`);
       
-      // Try to use Claude to analyze the query instead
-      if (process.env.ANTHROPIC_API_KEY) {
+      // Try using Perplexity first, fall back to Claude if needed
+      try {
+        // Check if Perplexity API key is available
+        if (!process.env.PERPLEXITY_API_KEY) {
+          log("PERPLEXITY_API_KEY environment variable is missing");
+          throw new Error("PERPLEXITY_API_KEY is required for web search");
+        }
+
+        // Log API key prefix (first 5 chars) for debugging
+        const apiKey = process.env.PERPLEXITY_API_KEY;
+        log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
+      
+        // Create request body exactly as in the documentation
+        const requestBody = {
+          model: "sonar", // Use standard sonar model for web search
+          messages: [
+            {
+              role: "system",
+              content: "Be precise and concise. Provide accurate and up-to-date information from the web."
+            },
+            {
+              role: "user",
+              content: query
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.2,
+          top_p: 0.9,
+          search_domain_filter: ["<any>"],
+          return_images: false,
+          return_related_questions: true,
+          search_recency_filter: "month",
+          top_k: 0,
+          stream: false,
+          presence_penalty: 0,
+          frequency_penalty: 1,
+          web_search_options: { search_context_size: "high" }
+        };
+      
+        log('Attempting request to Perplexity API with model sonar and web search...');
+        const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        // Log response status
+        log(`Perplexity API response status: ${perplexityResponse.status}`);
+      
+        if (!perplexityResponse.ok) {
+          const errorText = await perplexityResponse.text();
+          log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
+          throw new Error(`Perplexity API error: ${perplexityResponse.status} - ${errorText}`);
+        }
+        
+        const data = await perplexityResponse.json();
+        log('Successfully received response from Perplexity API');
+        log(`Response data structure: ${Object.keys(data).join(', ')}`);
+        
+        // Full response logging for debugging (without any sensitive information)
+        log(`Response data sample: ${JSON.stringify(data).substring(0, 300)}...`);
+        
         try {
-          log('Using Claude Sonnet as a fallback for search queries');
+          // Extract content from the response
+          let answer = "";
+          let citations: string[] = [];
+          let relatedQuestions: string[] = [];
+          
+          // Extract the answer from the response according to the Perplexity API format
+          if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+            answer = data.choices[0].message.content || "";
+            log(`Answer extracted (first 100 chars): ${answer.substring(0, 100)}...`);
+          } else {
+            log('No choices or message content in response');
+          }
+          
+          // Extract citations if they exist in the correct format
+          if (data.citations && Array.isArray(data.citations)) {
+            citations = data.citations;
+            log(`Found ${citations.length} citations`);
+          } else if (data.links && Array.isArray(data.links)) {
+            // Alternative format some APIs might use
+            citations = data.links;
+            log(`Found ${citations.length} links (alternative to citations)`);
+          }
+          
+          // Extract related questions if they exist
+          if (data.related_questions && Array.isArray(data.related_questions)) {
+            relatedQuestions = data.related_questions;
+            log(`Found ${relatedQuestions.length} related questions`);
+          } else {
+            // Generate some related questions based on the topic
+            const queryWords = query.split(' ').filter(w => w.length > 3);
+            if (queryWords.length > 0) {
+              relatedQuestions = [
+                `What's the history of ${queryWords[0]}?`,
+                `How does ${queryWords[0]} impact society?`,
+                `Latest developments in ${queryWords[0]}`
+              ];
+              log('Generated fallback related questions');
+            }
+          }
+          
+          res.json({
+            answer,
+            citations,
+            related_questions: relatedQuestions
+          });
+        } catch (jsonError: any) {
+          log(`Error processing Perplexity response: ${jsonError?.message || 'Unknown error'}`);
+          throw new Error(`Failed to process Perplexity API response: ${jsonError?.message}`);
+        }
+      } catch (perplexityError: any) {
+        // Perplexity failed, try Claude as fallback
+        log(`Perplexity API failed: ${perplexityError?.message || "Unknown error"}`);
+        
+        if (!process.env.ANTHROPIC_API_KEY) {
+          throw new Error("Cannot use Claude fallback: ANTHROPIC_API_KEY is missing");
+        }
+        
+        try {
+          log('Using Claude Sonnet as a fallback for web search');
           
           const response = await anthropic.messages.create({
             model: "claude-3-7-sonnet-20250219",
@@ -245,122 +367,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         } catch (claudeError: any) {
           log(`Error using Claude fallback: ${claudeError?.message || "Unknown error"}`);
-          // Continue to try Perplexity if Claude fails
+          throw new Error("Failed to process search with both Perplexity and Claude");
         }
-      }
-      
-      // Check if Perplexity API key is available
-      if (!process.env.PERPLEXITY_API_KEY) {
-        throw new Error("PERPLEXITY_API_KEY environment variable is required");
-      }
-
-      // Log API key prefix (first 5 chars) for debugging
-      const apiKey = process.env.PERPLEXITY_API_KEY;
-      log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
-      
-      // Create request body exactly as in the documentation
-      const requestBody = {
-        model: "sonar", // Use standard sonar model for web search
-        messages: [
-          {
-            role: "system",
-            content: "Be precise and concise. Provide accurate and up-to-date information."
-          },
-          {
-            role: "user",
-            content: query
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.2,
-        top_p: 0.9,
-        search_domain_filter: ["<any>"],
-        return_images: false,
-        return_related_questions: true,
-        search_recency_filter: "month",
-        top_k: 0,
-        stream: false,
-        presence_penalty: 0,
-        frequency_penalty: 1,
-        web_search_options: { search_context_size: "high" }
-      };
-      
-      log('Attempting request to Perplexity API with model sonar and web search...');
-      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      // Log response status
-      log(`Perplexity API response status: ${perplexityResponse.status}`);
-      
-      if (!perplexityResponse.ok) {
-        const errorText = await perplexityResponse.text();
-        log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
-        throw new Error(`Perplexity API error: ${perplexityResponse.status} - ${errorText}`);
-      }
-
-      const data = await perplexityResponse.json();
-      log('Successfully received response from Perplexity API');
-      log(`Response data structure: ${Object.keys(data).join(', ')}`);
-      
-      // Full response logging for debugging (without any sensitive information)
-      log(`Response data sample: ${JSON.stringify(data).substring(0, 300)}...`);
-      
-      try {
-        // Extract content from the response
-        let answer = "";
-        let citations: string[] = [];
-        let relatedQuestions: string[] = [];
-        
-        // Extract the answer from the response according to the Perplexity API format
-        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-          answer = data.choices[0].message.content || "";
-          log(`Answer extracted (first 100 chars): ${answer.substring(0, 100)}...`);
-        } else {
-          log('No choices or message content in response');
-        }
-        
-        // Extract citations if they exist in the correct format
-        if (data.citations && Array.isArray(data.citations)) {
-          citations = data.citations;
-          log(`Found ${citations.length} citations`);
-        } else if (data.links && Array.isArray(data.links)) {
-          // Alternative format some APIs might use
-          citations = data.links;
-          log(`Found ${citations.length} links (alternative to citations)`);
-        }
-        
-        // Extract related questions if they exist
-        if (data.related_questions && Array.isArray(data.related_questions)) {
-          relatedQuestions = data.related_questions;
-          log(`Found ${relatedQuestions.length} related questions`);
-        } else {
-          // Generate some related questions based on the topic
-          const queryWords = query.split(' ').filter(w => w.length > 3);
-          if (queryWords.length > 0) {
-            relatedQuestions = [
-              `What's the history of ${queryWords[0]}?`,
-              `How does ${queryWords[0]} impact society?`,
-              `Latest developments in ${queryWords[0]}`
-            ];
-            log('Generated fallback related questions');
-          }
-        }
-        
-        res.json({
-          answer,
-          citations,
-          related_questions: relatedQuestions
-        });
-      } catch (jsonError: any) {
-        log(`Error processing Perplexity response: ${jsonError?.message || 'Unknown error'}`);
-        throw new Error(`Failed to process Perplexity API response: ${jsonError?.message}`);
       }
     } catch (error: any) {
       log(`Error in search endpoint: ${error.message || "Unknown error"}`);
