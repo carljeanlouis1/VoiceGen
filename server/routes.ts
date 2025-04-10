@@ -291,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
         // Create request body exactly as in the documentation, with corrected parameters
         const requestBody = {
-          model: "sonar", // Use standard sonar model for web search
+          model: "llama-3.1-sonar-small-128k-online", // Use Llama model for web search
           messages: [
             {
               role: "system",
@@ -316,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           web_search_options: { search_context_size: "high" }
         };
       
-        log('Attempting request to Perplexity API with model sonar and web search...');
+        log('Attempting request to Perplexity API with Llama 3.1 Sonar small model and web search...');
         const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: {
