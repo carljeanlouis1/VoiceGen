@@ -463,10 +463,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle Claude 3.7 Sonnet requests
       if (model === "claude") {
         // Convert messages to Claude format, but exclude any system messages as we'll set that separately
-        const claudeMessages = messages.filter(msg => msg.role !== "system").map(msg => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content
-        }));
+        const claudeMessages: MessageParam[] = messages
+          .filter(msg => msg.role !== "system")
+          .map(msg => ({
+            role: msg.role === "user" ? "user" : "assistant",
+            content: msg.content
+          }));
         
         // Create appropriate system message based on whether context is used
         let systemContent = "";
