@@ -9,26 +9,17 @@ export default function LandingPage() {
       <section className="relative px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
         
-        {/* Navigation */}
-        <nav className="flex items-center justify-between py-6 relative">
-          <div>
-            <span className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              VoiceGen
-            </span>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-8">
+        {/* Additional landing page navigation - visible on landing page only */}
+        <div className="hidden md:flex items-center justify-center py-6 relative">
+          <div className="flex items-center gap-8">
             <a href="#features" className="text-sm font-medium text-gray-700 hover:text-primary dark:text-gray-300">
               Features
             </a>
             <a href="#how-it-works" className="text-sm font-medium text-gray-700 hover:text-primary dark:text-gray-300">
               How It Works
             </a>
-            <Button asChild size="sm">
-              <Link href="/convert">Get Started</Link>
-            </Button>
           </div>
-        </nav>
+        </div>
         
         {/* Hero Content */}
         <div className="relative mx-auto max-w-5xl pt-20 pb-24 sm:pt-24 sm:pb-32">
