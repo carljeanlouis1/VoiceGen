@@ -56,7 +56,10 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     status: string;
     progress: number;
     estimatedDuration?: number;
+    error?: string;
   } | null>(null);
+  
+  // Use state for polling interval
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
   
   const form = useForm<FormData>({
@@ -70,6 +73,9 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   });
 
   // Function to check job status
+  // Forward declare the mutation ref to avoid dependency cycle
+  const mutationRef = useRef<any>(null);
+  
   const checkJobStatus = useCallback(async (jobId: number) => {
     try {
       console.log(`Checking status for job ${jobId}...`);
@@ -126,7 +132,9 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           };
           
           // Set the mutation data directly and clear processing job
-          (mutation as any)._state.data = audioFile;
+          if (mutationRef.current) {
+            (mutationRef.current as any)._state.data = audioFile;
+          }
           setProcessingJob(null);
           
           // Call onSuccess function and show toast
@@ -177,17 +185,13 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         });
       }
     }
-  }, [pollingInterval, processingJob, toast, form, onSuccess]);
+  }, [pollingInterval, processingJob, toast, form, onSuccess, mutationRef]);
 
   // Set up polling when a job is in progress
   useEffect(() => {
-    if (processingJob && processingJob.status === 'processing') {
-      // Clear any existing interval when job state changes
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
-      
-      console.log(`Starting/continuing polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
+    // Only start/restart polling if we have a processing job and no active interval
+    if (processingJob && processingJob.status === 'processing' && !pollingInterval) {
+      console.log(`Starting polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
       
       // First check immediately
       checkJobStatus(processingJob.id);
@@ -199,14 +203,16 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       }, 2000);
       
       setPollingInterval(intervalId);
-      
-      // Clean up on unmount
-      return () => {
-        console.log(`Clearing polling interval for job ${processingJob.id}`);
-        clearInterval(intervalId);
-      };
     }
-  }, [processingJob?.id, processingJob?.status, processingJob?.progress, checkJobStatus]);
+    
+    // Clean up on unmount or when processing job changes/completes
+    return () => {
+      if (pollingInterval) {
+        console.log(`Cleaning up polling interval`);
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [processingJob?.id, pollingInterval, checkJobStatus]);
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
