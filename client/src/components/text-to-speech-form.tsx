@@ -80,6 +80,12 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       
       console.log(`Status for job ${jobId}:`, result);
       
+      // Only proceed if we're still processing this job
+      if (!processingJob || processingJob.id !== jobId) {
+        console.log(`Ignoring update for job ${jobId} as it's no longer the active job`);
+        return;
+      }
+      
       // Update the job state with the latest information
       setProcessingJob(prev => {
         if (!prev) return null;
@@ -152,20 +158,36 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           variant: "destructive",
         });
       }
+      // If still processing, just continue with updates
+      else {
+        console.log(`Job ${jobId} is still processing (${result.progress}%)`);
+      }
     } catch (error: any) {
       console.error("Error checking job status:", error);
-      toast({
-        title: "Connection Error",
-        description: "Unable to check processing status. Please try refreshing the page.",
-        variant: "destructive",
-      });
+      
+      // Don't stop polling on connection errors - just log it and try again
+      console.log("Will retry on next polling cycle");
+      
+      // Only show toast for persistent connection issues
+      if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+        toast({
+          title: "Connection Issue",
+          description: "Trouble connecting to server. Will keep trying...",
+          variant: "destructive",
+        });
+      }
     }
-  }, [pollingInterval, toast, form, onSuccess]);
+  }, [pollingInterval, processingJob, toast, form, onSuccess]);
 
   // Set up polling when a job is in progress
   useEffect(() => {
-    if (processingJob && processingJob.status === 'processing' && !pollingInterval) {
-      console.log(`Starting polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
+    if (processingJob && processingJob.status === 'processing') {
+      // Clear any existing interval when job state changes
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      
+      console.log(`Starting/continuing polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
       
       // First check immediately
       checkJobStatus(processingJob.id);
@@ -184,7 +206,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         clearInterval(intervalId);
       };
     }
-  }, [processingJob, pollingInterval, checkJobStatus]);
+  }, [processingJob?.id, processingJob?.status, processingJob?.progress, checkJobStatus]);
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
