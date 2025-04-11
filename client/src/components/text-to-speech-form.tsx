@@ -61,6 +61,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   
   // Use state for polling interval
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+  // Forward declare mutation ref to avoid circular dependencies
+  const mutationRef = useRef<any>(null);
   
   const form = useForm<FormData>({
     resolver: zodResolver(textToSpeechSchema),
@@ -72,10 +74,69 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     }
   });
 
-  // Function to check job status
-  // Forward declare the mutation ref to avoid dependency cycle
-  const mutationRef = useRef<any>(null);
+  // Declare mutation early to avoid dependency issues
+  const mutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      // apiRequest already returns parsed JSON, so we don't need to call .json() again
+      const response = await apiRequest("/api/text-to-speech", {
+        method: "POST",
+        data
+      });
+      
+      // Check if this is a background job
+      if (response.status === 'processing') {
+        setProcessingJob({
+          id: response.id,
+          status: response.status,
+          progress: response.progress || 0,
+          estimatedDuration: response.estimatedDuration
+        });
+        
+        // For background jobs, immediately return to prevent mutation.onSuccess
+        throw new Error("BACKGROUND_JOB_STARTED");
+      }
+      
+      // For regular jobs, return the response normally
+      return response;
+    },
+    onSuccess: (data) => {
+      onSuccess();
+      toast({
+        title: "Success",
+        description: "Audio file created successfully",
+      });
+      
+      // Clear any processing job state
+      setProcessingJob(null);
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+    },
+    onError: (error: Error) => {
+      // Special case for background jobs
+      if (error.message === "BACKGROUND_JOB_STARTED") {
+        toast({
+          title: "Processing Started",
+          description: "Your text is being converted in the background. This may take a few minutes for long texts.",
+        });
+        return;
+      }
+      
+      toast({
+        title: "Error",
+        description: error.message || "Failed to convert text to speech. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
   
+  // Update the mutation ref so it can be accessed in callbacks
+  useEffect(() => {
+    mutationRef.current = mutation;
+  }, [mutation]);
+
+  // Function to check job status
   const checkJobStatus = useCallback(async (jobId: number) => {
     try {
       console.log(`Checking status for job ${jobId}...`);
@@ -185,7 +246,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         });
       }
     }
-  }, [pollingInterval, processingJob, toast, form, onSuccess, mutationRef]);
+  }, [pollingInterval, processingJob, toast, form, onSuccess]);
 
   // Set up polling when a job is in progress
   useEffect(() => {
@@ -213,62 +274,6 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       }
     };
   }, [processingJob?.id, pollingInterval, checkJobStatus]);
-
-  const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      // apiRequest already returns parsed JSON, so we don't need to call .json() again
-      const response = await apiRequest("/api/text-to-speech", {
-        method: "POST",
-        data
-      });
-      
-      // Check if this is a background job
-      if (response.status === 'processing') {
-        setProcessingJob({
-          id: response.id,
-          status: response.status,
-          progress: response.progress || 0,
-          estimatedDuration: response.estimatedDuration
-        });
-        
-        // For background jobs, immediately return to prevent mutation.onSuccess
-        throw new Error("BACKGROUND_JOB_STARTED");
-      }
-      
-      // For regular jobs, return the response normally
-      return response;
-    },
-    onSuccess: (data) => {
-      onSuccess();
-      toast({
-        title: "Success",
-        description: "Audio file created successfully",
-      });
-      
-      // Clear any processing job state
-      setProcessingJob(null);
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        setPollingInterval(null);
-      }
-    },
-    onError: (error: Error) => {
-      // Special case for background jobs
-      if (error.message === "BACKGROUND_JOB_STARTED") {
-        toast({
-          title: "Processing Started",
-          description: "Your text is being converted in the background. This may take a few minutes for long texts.",
-        });
-        return;
-      }
-      
-      toast({
-        title: "Error",
-        description: error.message || "Failed to convert text to speech. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const textLength = form.watch("text").length;
   const selectedVoice = form.watch("voice");
