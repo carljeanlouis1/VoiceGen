@@ -1,0 +1,204 @@
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { ArrowRight, Headphones, MessageSquare, Search, Library, Sparkles } from "lucide-react";
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Hero Section */}
+      <section className="relative px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
+        
+        {/* Navigation */}
+        <nav className="flex items-center justify-between py-6 relative">
+          <div>
+            <span className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+              VoiceGen
+            </span>
+          </div>
+          
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-sm font-medium text-gray-700 hover:text-primary dark:text-gray-300">
+              Features
+            </a>
+            <a href="#how-it-works" className="text-sm font-medium text-gray-700 hover:text-primary dark:text-gray-300">
+              How It Works
+            </a>
+            <Button asChild size="sm">
+              <Link href="/convert">Get Started</Link>
+            </Button>
+          </div>
+        </nav>
+        
+        {/* Hero Content */}
+        <div className="relative mx-auto max-w-5xl pt-20 pb-24 sm:pt-24 sm:pb-32">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+              Transform Text Into Natural Speech With AI
+            </h1>
+            <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+              VoiceGen combines cutting-edge AI models to convert your text into natural-sounding speech,
+              analyze content, chat with AI, and search the web—all in one powerful platform.
+            </p>
+            <div className="mt-10 flex items-center justify-center gap-x-6">
+              <Button asChild size="lg" className="px-8">
+                <Link href="/convert">
+                  Get Started
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" asChild size="lg">
+                <a href="#features">
+                  Learn More
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="py-24 bg-white dark:bg-gray-950">
+        <div className="container px-4 md:px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Advanced AI Capabilities</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+              Harness the power of multiple AI models to enhance your content creation and knowledge exploration.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Feature 1 */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
+              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
+                <Headphones className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Text-to-Speech</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Convert any text into natural-sounding audio with six premium voice options. Supports texts of any length.
+              </p>
+            </div>
+            
+            {/* Feature 2 */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
+              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
+                <MessageSquare className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">AI Chat</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Discuss and analyze content with Claude 3.7 or GPT-4o, with or without audio context.
+              </p>
+            </div>
+            
+            {/* Feature 3 */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
+              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
+                <Search className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Web Search</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Get real-time information from the internet with AI-powered search and source citations.
+              </p>
+            </div>
+            
+            {/* Feature 4 */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
+              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">AI Artwork</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Generate custom artwork for your audio files using DALL-E 3, tailored to your content.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* How It Works */}
+      <section id="how-it-works" className="py-24 bg-gray-50 dark:bg-gray-900">
+        <div className="container px-4 md:px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">How VoiceGen Works</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+              A seamless workflow powered by multiple AI models working together
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-10 max-w-4xl mx-auto">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">1</div>
+              <h3 className="text-xl font-semibold mb-2">Input Your Text</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Enter or paste your content and select from six premium voice options.
+              </p>
+            </div>
+            
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">2</div>
+              <h3 className="text-xl font-semibold mb-2">Process with AI</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Our AI processes your text, breaks it into optimal chunks, and generates high-quality audio.
+              </p>
+            </div>
+            
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">3</div>
+              <h3 className="text-xl font-semibold mb-2">Interact & Analyze</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Listen to your audio, analyze with AI, chat about the content, or search for related information.
+              </p>
+            </div>
+          </div>
+          
+          <div className="text-center mt-16">
+            <Button asChild size="lg">
+              <Link href="/convert">
+                Start Converting Now
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+      
+      {/* Footer */}
+      <footer className="py-12 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+        <div className="container px-4 md:px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="mb-4 md:mb-0">
+              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                VoiceGen
+              </span>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Advanced AI-powered text-to-speech platform
+              </p>
+            </div>
+            
+            <div className="flex space-x-6 md:space-x-8">
+              <Link href="/convert" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Convert
+              </Link>
+              <Link href="/library" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Library
+              </Link>
+              <Link href="/chat" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Chat
+              </Link>
+              <Link href="/search" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Search
+              </Link>
+            </div>
+          </div>
+          
+          <div className="text-center text-sm text-gray-600 dark:text-gray-400 mt-8">
+            © {new Date().getFullYear()} VoiceGen. All rights reserved.
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
