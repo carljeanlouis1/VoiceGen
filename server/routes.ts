@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
 import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
 import { z } from "zod";
@@ -444,44 +445,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const schema = z.object({
         messages: z.array(z.object({
-          role: z.enum(["user", "assistant"]),
+          role: z.enum(["user", "assistant", "system"]),
           content: z.string()
         })),
-        context: z.string()
+        context: z.string().optional().default(""),
+        model: z.enum(["claude", "gpt"]).default("claude"),
+        useContext: z.boolean().default(true)
       });
 
-      const { messages, context } = schema.parse(req.body);
-
-      // Convert messages to Claude format
-      const claudeMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      const { messages, context, model, useContext } = schema.parse(req.body);
       
-      // Add system message with context
-      const systemMessage = {
-        role: "system" as const,
-        content: `You are Claude Sonnet 3.7, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`
-      };
-
-      // Create Claude API request
-      const response = await anthropic.messages.create({
-        model: "claude-3-7-sonnet-20250219", // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
-        max_tokens: 1000,
-        temperature: 0.7,
-        system: systemMessage.content,
-        messages: claudeMessages
-      });
-
-      // Extract text content safely
-      const responseText = response.content[0].type === 'text' 
-        ? response.content[0].text 
-        : "Sorry, I couldn't process that request properly.";
+      // Log the request details
+      log(`Chat request: model=${model}, useContext=${useContext}, context length=${context?.length || 0}, messages=${messages.length}`);
+      
+      let responseText = "";
+      
+      // Handle Claude 3.7 Sonnet requests
+      if (model === "claude") {
+        // Convert messages to Claude format, but exclude any system messages as we'll set that separately
+        const claudeMessages = messages.filter(msg => msg.role !== "system").map(msg => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content
+        }));
         
-      res.json({ response: responseText });
+        // Create appropriate system message based on whether context is used
+        let systemContent = "";
+        if (useContext && context) {
+          systemContent = `You are Claude Sonnet 3.7, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`;
+        } else {
+          systemContent = "You are Claude Sonnet 3.7, an advanced AI assistant. Provide helpful, detailed, and thoughtful responses to the user's questions.";
+        }
+        
+        // Create Claude API request
+        const response = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219", // the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
+          max_tokens: 1000,
+          temperature: 0.7,
+          system: systemContent,
+          messages: claudeMessages
+        });
+
+        // Extract text content safely
+        responseText = response.content[0].type === 'text' 
+          ? response.content[0].text 
+          : "Sorry, I couldn't process that request properly.";
+      } 
+      // Handle GPT-4o requests
+      else if (model === "gpt") {
+        // Format messages for OpenAI
+        let openaiMessages = [...messages]; // Start with the user's messages
+        
+        // Add context as system message if needed
+        if (useContext && context) {
+          // If the first message is already a system message, update it
+          if (openaiMessages.length > 0 && openaiMessages[0].role === "system") {
+            openaiMessages[0].content = `You are GPT-4o, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`;
+          } else {
+            // Otherwise, add a new system message at the beginning
+            openaiMessages.unshift({
+              role: "system",
+              content: `You are GPT-4o, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`
+            });
+          }
+        } else if (!openaiMessages.some(msg => msg.role === "system")) {
+          // If no context and no system message exists, add a general one
+          openaiMessages.unshift({
+            role: "system",
+            content: "You are GPT-4o, an advanced AI assistant. Provide helpful, detailed, and thoughtful responses to the user's questions."
+          });
+        }
+        
+        // Create OpenAI API request
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+          messages: openaiMessages,
+          max_tokens: 1000,
+          temperature: 0.7
+        });
+
+        // Extract the response content
+        responseText = response.choices[0].message.content || "Sorry, I couldn't process that request properly.";
+      }
+      
+      // Return the response to the client
+      res.json({ 
+        response: responseText,
+        model: model
+      });
     } catch (error: any) {
       log(`Error in chat endpoint: ${error.message || "Unknown error"}`);
-      res.status(500).json({ message: "Failed to process chat request" });
+      res.status(500).json({ 
+        message: error.message || "Failed to process chat request",
+        error: error.toString()
+      });
     }
   });
 
