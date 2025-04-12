@@ -10,6 +10,7 @@ import { log } from "./vite";
 import fetch from "node-fetch";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
