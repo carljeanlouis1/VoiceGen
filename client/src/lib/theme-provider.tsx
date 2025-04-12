@@ -9,7 +9,7 @@ type ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Initialize theme from localStorage or default to light mode
+  // Initialize theme from localStorage or system preference
   const [theme, setTheme] = useState<Theme>(() => {
     // Check if theme was previously stored
     const savedTheme = localStorage.getItem('voicegen-theme');
@@ -17,7 +17,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return savedTheme;
     }
     
-    // Always default to light mode regardless of system preference
+    // Otherwise use system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    
+    // Default to light
     return 'light';
   });
 

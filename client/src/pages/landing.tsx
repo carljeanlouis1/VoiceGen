@@ -25,11 +25,11 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-5xl pt-20 pb-24 sm:pt-24 sm:pb-32">
           <div className="text-center">
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              Transform Text Into Natural Speech With AI
+              AI-Powered Content Creation & Text-to-Speech
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-              VoiceGen combines cutting-edge AI models to convert your text into natural-sounding speech,
-              analyze content, chat with AI, and search the web—all in one powerful platform.
+              VoiceGen combines cutting-edge AI models including Gemini 2.5 Pro, Claude 3.7, GPT-4o, and Llama 3.1 
+              to create content, convert text to speech, analyze information, and search the web—all in one powerful platform.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Button asChild size="lg" className="px-8">
@@ -58,7 +58,7 @@ export default function LandingPage() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 gap-8">
             {/* Feature 1 */}
             <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
               <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
@@ -68,39 +68,59 @@ export default function LandingPage() {
               <p className="text-gray-600 dark:text-gray-400">
                 Convert any text into natural-sounding audio with six premium voice options. Supports texts of any length.
               </p>
+              <div className="mt-4">
+                <Link href="/convert">
+                  <Button variant="outline" size="sm">Try It</Button>
+                </Link>
+              </div>
             </div>
             
             {/* Feature 2 */}
+            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
+              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Content Creator</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Create stories, articles, scripts, and marketing copy with Gemini 2.5 Pro. Supports both text and image inputs.
+              </p>
+              <div className="mt-4">
+                <Link href="/create">
+                  <Button variant="outline" size="sm">Try It</Button>
+                </Link>
+              </div>
+            </div>
+            
+            {/* Feature 3 */}
             <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
               <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
                 <MessageSquare className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold mb-2">AI Chat</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Discuss and analyze content with Claude 3.7 or GPT-4o, with or without audio context.
+                Discuss and analyze content with Claude 3.7 Sonnet or GPT-4o, with or without audio context.
               </p>
+              <div className="mt-4">
+                <Link href="/chat">
+                  <Button variant="outline" size="sm">Try It</Button>
+                </Link>
+              </div>
             </div>
             
-            {/* Feature 3 */}
+            {/* Feature 4 */}
             <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
               <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
                 <Search className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-semibold mb-2">Web Search</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Get real-time information from the internet with AI-powered search and source citations.
+                Get real-time information from the internet with Llama 3.1 Sonar AI-powered search and source citations.
               </p>
-            </div>
-            
-            {/* Feature 4 */}
-            <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:shadow-md transition-shadow">
-              <div className="h-12 w-12 flex items-center justify-center rounded-lg bg-primary/10 text-primary mb-4">
-                <Sparkles className="h-6 w-6" />
+              <div className="mt-4">
+                <Link href="/search">
+                  <Button variant="outline" size="sm">Try It</Button>
+                </Link>
               </div>
-              <h3 className="text-xl font-semibold mb-2">AI Artwork</h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Generate custom artwork for your audio files using DALL-E 3, tailored to your content.
-              </p>
             </div>
           </div>
         </div>
@@ -165,11 +185,14 @@ export default function LandingPage() {
                 VoiceGen
               </span>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Advanced AI-powered text-to-speech platform
+                Advanced AI-powered content creation & text-to-speech platform
               </p>
             </div>
             
             <div className="flex space-x-6 md:space-x-8">
+              <Link href="/create" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Create
+              </Link>
               <Link href="/convert" className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
                 Convert
               </Link>
