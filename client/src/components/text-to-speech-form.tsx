@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -51,6 +51,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const { toast } = useToast();
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const intervalRef = useRef<number | null>(null);
   const [processingJob, setProcessingJob] = useState<{
     id: number;
     status: string;
@@ -58,11 +59,6 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     estimatedDuration?: number;
     error?: string;
   } | null>(null);
-  
-  // Use state for polling interval
-  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
-  // Forward declare mutation ref to avoid circular dependencies
-  const mutationRef = useRef<any>(null);
   
   const form = useForm<FormData>({
     resolver: zodResolver(textToSpeechSchema),
@@ -74,96 +70,30 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     }
   });
 
-  // Declare mutation early to avoid dependency issues
-  const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      // apiRequest already returns parsed JSON, so we don't need to call .json() again
-      const response = await apiRequest("/api/text-to-speech", {
-        method: "POST",
-        data
-      });
-      
-      // Check if this is a background job
-      if (response.status === 'processing') {
-        setProcessingJob({
-          id: response.id,
-          status: response.status,
-          progress: response.progress || 0,
-          estimatedDuration: response.estimatedDuration
-        });
-        
-        // For background jobs, immediately return to prevent mutation.onSuccess
-        throw new Error("BACKGROUND_JOB_STARTED");
-      }
-      
-      // For regular jobs, return the response normally
-      return response;
-    },
-    onSuccess: (data) => {
-      onSuccess();
-      toast({
-        title: "Success",
-        description: "Audio file created successfully",
-      });
-      
-      // Clear any processing job state
-      setProcessingJob(null);
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        setPollingInterval(null);
-      }
-    },
-    onError: (error: Error) => {
-      // Special case for background jobs
-      if (error.message === "BACKGROUND_JOB_STARTED") {
-        toast({
-          title: "Processing Started",
-          description: "Your text is being converted in the background. This may take a few minutes for long texts.",
-        });
-        return;
-      }
-      
-      toast({
-        title: "Error",
-        description: error.message || "Failed to convert text to speech. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Update the mutation ref so it can be accessed in callbacks
+  // Clean up when component unmounts
   useEffect(() => {
-    mutationRef.current = mutation;
-  }, [mutation]);
+    return () => {
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Function to check job status
-  const checkJobStatus = useCallback(async (jobId: number) => {
+  const checkJobStatus = async (jobId: number) => {
     try {
-      console.log(`Checking status for job ${jobId}...`);
+      const response = await fetch(`/api/text-to-speech/status/${jobId}`);
       
-      const result = await fetch(`/api/text-to-speech/status/${jobId}`);
-      
-      if (!result.ok) {
-        throw new Error(`Failed to fetch job status: ${result.status}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch job status: ${response.status}`);
       }
       
-      const data = await result.json();
-      console.log(`Status for job ${jobId}:`, data);
+      const data = await response.json();
       
-      // Only proceed if we're still processing this job
-      if (!processingJob || processingJob.id !== jobId) {
-        console.log(`Ignoring update for job ${jobId} as it's no longer the active job`);
-        return;
-      }
-      
-      // Update the job state with the latest information
+      // Update job state with latest information
       setProcessingJob(prev => {
         if (!prev) return null;
-        
-        // Log the progress update
-        if (prev.progress !== data.progress) {
-          console.log(`Progress updated: ${prev.progress}% -> ${data.progress}%`);
-        }
         
         return {
           ...prev,
@@ -173,54 +103,40 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         };
       });
       
-      // If complete, get the file and clean up
+      // Handle completion
       if (data.status === 'complete') {
-        console.log(`Job ${jobId} completed successfully!`);
-        
-        // Clear the polling interval
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
+        // Stop polling
+        if (intervalRef.current) {
+          window.clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
         
         if (data.audioUrl) {
-          console.log(`Audio URL received, length: ${data.audioUrl.length.toLocaleString()} chars`);
+          // Set as mutation data
+          mutation.reset();
           
-          // Create audio file object with completed data
-          const audioFile = { 
-            id: jobId,
-            title: form.getValues('title'),
-            audioUrl: data.audioUrl,
-            text: form.getValues('text'),
-            voice: form.getValues('voice')
-          };
-          
-          // Set the mutation data directly and clear processing job
-          if (mutationRef.current) {
-            (mutationRef.current as any)._state.data = audioFile;
-          }
-          setProcessingJob(null);
-          
-          // Call onSuccess function and show toast
+          // Call success callback
           onSuccess();
           
+          // Show completion toast
           toast({
             title: "Success",
             description: "Audio file created successfully",
           });
+          
+          // Reset the processing job
+          setProcessingJob(null);
         }
-      } 
-      // If error, show error toast and clean up
+      }
+      // Handle error
       else if (data.status === 'error') {
-        console.log(`Job ${jobId} failed with error: ${data.error}`);
-        
-        // Clear the polling interval
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
+        // Stop polling
+        if (intervalRef.current) {
+          window.clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
         
-        // Reset the processing job
+        // Reset processing job
         setProcessingJob(null);
         
         // Show error toast
@@ -230,55 +146,83 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           variant: "destructive",
         });
       }
-      // If still processing, just continue with updates
-      else {
-        console.log(`Job ${jobId} is still processing (${data.progress}%)`);
-      }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error checking job status:", error);
-      
-      // Don't stop polling on connection errors - just log it and try again
-      console.log("Will retry on next polling cycle");
-      
-      // Only show toast for persistent connection issues
-      if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
-        toast({
-          title: "Connection Issue",
-          description: "Trouble connecting to server. Will keep trying...",
-          variant: "destructive",
-        });
-      }
     }
-  }, [pollingInterval, processingJob, toast, form, onSuccess]);
+  };
 
-  // Set up polling when a job is in progress
+  // Start polling when job ID changes
   useEffect(() => {
-    // Only start/restart polling if we have a processing job and no active interval
-    if (processingJob && processingJob.status === 'processing' && !pollingInterval) {
-      console.log(`Starting polling for job ${processingJob.id}, current progress: ${processingJob.progress}%`);
+    if (processingJob?.id && processingJob.status === 'processing') {
+      // Stop any existing interval
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+      }
       
-      // First check immediately
-      checkJobStatus(processingJob.id);
-      
-      // Then poll every 2 seconds for job status (more frequent updates)
-      const intervalId = window.setInterval(() => {
-        console.log(`Polling job ${processingJob.id} status...`);
+      // Start polling
+      const id = window.setInterval(() => {
         checkJobStatus(processingJob.id);
       }, 2000);
       
-      setPollingInterval(intervalId);
+      intervalRef.current = id;
       
-      // Clean up only when the component unmounts or the ID changes
-      return () => {
-        console.log(`Cleaning up polling interval for job ${processingJob.id}`);
-        clearInterval(intervalId);
-        setPollingInterval(null);
-      };
+      // Initial check
+      checkJobStatus(processingJob.id);
     }
     
-    // Return empty cleanup function if no new interval was set
-    return () => {};
-  }, [processingJob?.id, checkJobStatus]);
+    // Clean up when component unmounts or job ID changes
+    return () => {
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [processingJob?.id]);
+
+  // Mutation for form submission
+  const mutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      const response = await apiRequest("/api/text-to-speech", {
+        method: "POST",
+        data
+      });
+      
+      // Handle background processing job
+      if (response && response.status === 'processing') {
+        setProcessingJob({
+          id: response.id,
+          status: response.status,
+          progress: response.progress || 0,
+          estimatedDuration: response.estimatedDuration
+        });
+        
+        toast({
+          title: "Processing Started",
+          description: "Your text is being converted in the background. This may take a few minutes.",
+        });
+        
+        return null;
+      }
+      
+      return response;
+    },
+    onSuccess: (data) => {
+      if (data) {
+        onSuccess();
+        toast({
+          title: "Success",
+          description: "Audio file created successfully",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to convert text to speech. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
 
   const textLength = form.watch("text").length;
   const selectedVoice = form.watch("voice");
@@ -303,7 +247,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         // Show loading state
         setPlayingVoice("loading");
         
-        // Fetch the voice sample from our API endpoint
+        // Fetch the voice sample
         const response = await fetch(`/api/voice-samples/${voice}`);
         
         if (!response.ok) {
