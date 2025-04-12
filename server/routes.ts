@@ -326,9 +326,48 @@ async function generateVoiceSamples() {
   log("Voice samples generation completed");
 }
 
+// Schema for Gemini content generation request
+const geminiContentSchema = z.object({
+  prompt: z.string(),
+  systemPrompt: z.string().optional(),
+  temperature: z.number().min(0).max(1).default(0.7).optional(),
+  maxOutputTokens: z.number().min(1).max(8192).default(4000).optional(),
+  images: z.array(z.string()).optional(), // Base64-encoded images
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Generate voice samples
   await generateVoiceSamples();
+  
+  // Endpoint for Gemini content generation
+  app.post("/api/gemini/generate", async (req, res) => {
+    try {
+      const data = geminiContentSchema.parse(req.body);
+      
+      log(`Generating content with Gemini: ${data.prompt.substring(0, 100)}...`);
+      
+      try {
+        const result = await generateGeminiContent({
+          prompt: data.prompt,
+          systemPrompt: data.systemPrompt,
+          temperature: data.temperature,
+          maxOutputTokens: data.maxOutputTokens,
+          images: data.images,
+        });
+        
+        res.json(result);
+      } catch (error: any) {
+        log(`Error in Gemini content generation: ${error.message}`);
+        res.status(500).json({ error: error.message || "Failed to generate content" });
+      }
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors[0].message });
+      } else {
+        res.status(500).json({ error: "An unexpected error occurred" });
+      }
+    }
+  });
   
   // Create a dedicated API endpoint for voice samples
   app.get('/api/voice-samples/:voice', async (req: Request, res: Response) => {

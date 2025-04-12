@@ -9,6 +9,7 @@ import Convert from "./pages/convert";
 import Library from "./pages/library";
 import Chat from "./pages/chat";
 import Search from "./pages/search";
+import Create from "./pages/create";
 import { ThemeProvider, useTheme } from "./lib/theme-provider";
 import { ThemeToggle } from "./components/theme-toggle";
 
@@ -36,6 +37,9 @@ function Navbar() {
         </Link>
         <div className="flex gap-4 items-center">
           <Button variant="ghost" asChild>
+            <Link href="/create">Create</Link>
+          </Button>
+          <Button variant="ghost" asChild>
             <Link href="/convert">Convert</Link>
           </Button>
           <Button variant="ghost" asChild>
@@ -58,6 +62,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
+      <Route path="/create" component={Create} />
       <Route path="/convert" component={Convert} />
       <Route path="/library" component={Library} />
       <Route path="/chat" component={Chat} />

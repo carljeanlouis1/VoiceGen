@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from "@google/genai";
+//import * as genai from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { log } from "./vite";
 
 // Use environment variable for the API key
@@ -9,7 +10,7 @@ if (!apiKey) {
 }
 
 // Initialize the Gemini API client
-const genAI = new GoogleGenerativeAI(apiKey);
+const genAI = new GoogleGenAI(apiKey);
 
 interface GenerateContentOptions {
   prompt: string;
