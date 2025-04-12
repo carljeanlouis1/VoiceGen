@@ -25,14 +25,25 @@ if (!process.env.ANTHROPIC_API_KEY) {
   throw new Error("ANTHROPIC_API_KEY environment variable is required");
 }
 
+// Audio directory for file storage
+const AUDIO_DIR = path.join(process.cwd(), 'public/audio');
+
+// Create audio directory if it doesn't exist
+if (!fs.existsSync(AUDIO_DIR)) {
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
+}
+
+// Maximum allowed text length (approximately 60 minutes of audio)
+const MAX_TEXT_LENGTH = 100000;
+
 // Holds in-memory processing state for each job
 const processingJobs = new Map<number, {
   id: number;
   status: 'processing' | 'complete' | 'error';
   progress: number;
-  chunks: Buffer[];
   totalChunks: number;
-  audioUrl?: string;
+  audioFilePath?: string; // Path to the stored audio file instead of storing in memory
+  audioUrl?: string;      // URL for client to access the audio
   error?: string;
 }>();
 
@@ -154,19 +165,29 @@ async function generateSpeechChunks(text: string, voice: string, onProgress?: (p
 async function startBackgroundProcessing(data: any): Promise<number> {
   const jobId = nextJobId++;
   
+  // Enforce maximum text length limit
+  if (data.text.length > MAX_TEXT_LENGTH) {
+    throw new Error(`Text is too long (${data.text.length} characters). Maximum allowed is ${MAX_TEXT_LENGTH} characters.`);
+  }
+  
+  // Generate a unique filename for this job
+  const uniqueId = crypto.randomBytes(8).toString('hex');
+  const audioFilename = `${uniqueId}.mp3`;
+  const audioFilePath = path.join(AUDIO_DIR, audioFilename);
+  
   // Initialize job state
   processingJobs.set(jobId, {
     id: jobId,
     status: 'processing',
     progress: 0,
-    chunks: [],
-    totalChunks: Math.ceil(data.text.length / MAX_CHUNK_SIZE)
+    totalChunks: Math.ceil(data.text.length / MAX_CHUNK_SIZE),
+    audioFilePath
   });
   
   // Start processing in the background
   (async () => {
     try {
-      log(`Starting background job #${jobId} for ${data.text.length} characters`);
+      log(`Starting background job #${jobId} for ${data.text.length} characters, output file: ${audioFilePath}`);
       
       // Generate optional summary and artwork if requested
       let summary: string | undefined;
@@ -191,8 +212,13 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         }
       );
 
-      // Create data URL for audio
-      const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
+      // Save the audio file to disk instead of keeping it in memory
+      fs.writeFileSync(audioFilePath, audioBuffer);
+      log(`Audio file saved to disk: ${audioFilePath} (${audioBuffer.length} bytes)`);
+      
+      // Create a URL that references the file for client access
+      // We're using a relative URL that the Express server will handle
+      const audioUrl = `/api/audio/${uniqueId}.mp3`;
       
       // Save to storage
       const audioFile = await storage.createAudioFile({
@@ -211,6 +237,7 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         job.status = 'complete';
         job.progress = 100;
         job.audioUrl = audioUrl;
+        job.audioFilePath = audioFilePath;
         processingJobs.set(jobId, job);
       }
       
@@ -333,6 +360,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const textLength = data.text.length;
 
       log(`Converting text to speech: ${data.title} (${textLength} characters)`);
+      
+      // Validate text length
+      if (textLength > MAX_TEXT_LENGTH) {
+        return res.status(400).json({ 
+          message: `Text is too long (${textLength} characters). Maximum allowed is ${MAX_TEXT_LENGTH} characters.`,
+          exceededLimit: true,
+          currentLength: textLength,
+          maxLength: MAX_TEXT_LENGTH
+        });
+      }
 
       // For short texts (under 5000 chars), process synchronously 
       if (textLength <= 5000) {
@@ -347,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Generate speech in chunks if needed
-        log("Generating speech audio");
+        log("Generating speech audio (synchronous mode)");
         const audioBuffer = await generateSpeechChunks(data.text, data.voice);
         const audioUrl = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
 
@@ -364,20 +401,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         log(`Audio file created: ${audioFile.id}`);
         res.json(audioFile);
       } 
-      // For longer texts, use background processing
+      // For longer texts, use background processing with file storage
       else {
-        log(`Text length ${textLength} exceeds threshold, using background processing`);
-        // Start background job and return job ID
-        const jobId = await startBackgroundProcessing(data);
+        log(`Text length ${textLength} exceeds threshold, using background processing with file storage`);
         
-        res.json({
-          id: jobId,
-          title: data.title,
-          status: 'processing',
-          progress: 0,
-          estimatedDuration: Math.ceil(textLength / 25), // Rough estimate of seconds
-          message: `Processing ${textLength} characters in the background`
-        });
+        try {
+          // Start background job and return job ID
+          const jobId = await startBackgroundProcessing(data);
+          
+          res.json({
+            id: jobId,
+            title: data.title,
+            status: 'processing',
+            progress: 0,
+            estimatedDuration: Math.ceil(textLength / 25), // Rough estimate of seconds
+            message: `Processing ${textLength} characters in the background`
+          });
+        } catch (bgError: any) {
+          log(`Error starting background processing: ${bgError.message}`);
+          res.status(500).json({ 
+            message: bgError.message || "Failed to start background processing",
+            error: true
+          });
+        }
       }
     } catch (error: any) {
       log(`Error in text-to-speech: ${error.message}`);
@@ -397,6 +443,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Endpoint to serve audio files from disk
+  app.get("/api/audio/:filename", (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(AUDIO_DIR, filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Audio file not found" });
+    }
+    
+    // Set appropriate headers and serve the file
+    res.setHeader('Content-Type', 'audio/mp3');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    
+    // Stream the file instead of loading it all into memory
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  });
+
   // Endpoint to check job status
   app.get("/api/text-to-speech/status/:jobId", (req, res) => {
     const jobId = parseInt(req.params.jobId);
