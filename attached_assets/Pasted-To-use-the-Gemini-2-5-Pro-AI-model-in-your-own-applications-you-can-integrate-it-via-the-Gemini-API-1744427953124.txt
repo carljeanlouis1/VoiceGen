@@ -1,0 +1,189 @@
+To use the Gemini 2.5 Pro AI model in your own applications, you can integrate it via the Gemini API provided by Google. Below is a comprehensive guide covering everything you need to know, including setup, usage, and JavaScript implementation.
+
+---
+
+## **Overview of Gemini 2.5 Pro**
+Gemini 2.5 Pro is Google’s most advanced AI model, excelling in reasoning, coding, and multimodal tasks (handling text, images, audio, and video). Key features include:
+- **Enhanced Reasoning**: Solves complex problems step-by-step.
+- **Coding Excellence**: Excels in generating and refactoring code.
+- **Massive Context Window**: Supports up to 1 million tokens (soon to double).
+- **Multimodal Capabilities**: Processes diverse input types.
+
+The model is available through the Gemini API on Google AI Studio and can be integrated into applications via SDKs or APIs.
+
+---
+
+## **Steps to Use Gemini 2.5 Pro**
+
+### **1. Prerequisites**
+- **API Key**: Visit Google AI Studio to generate your API key.
+- **SDK Installation**: Install the `@google/genai` JavaScript SDK for client-side or server-side integration.
+- **Environment Setup**:
+  - For Node.js: Ensure you have Node.js installed.
+  - For Python (optional): Install the `google-genai` library.
+
+---
+
+### **2. Setting Up the API**
+Follow these steps to configure the API:
+
+#### **JavaScript Example**
+1. Install the SDK:
+   ```bash
+   npm install @google/genai
+   ```
+
+2. Initialize the API client:
+   ```javascript
+   import { GoogleGenAI } from "@google/genai";
+
+   const ai = new GoogleGenAI({ apiKey: "YOUR_API_KEY" });
+
+   async function main() {
+       const prompt = "Explain how neural networks work.";
+       const response = await ai.models.generateContent({
+           model: "gemini-2.5-pro-exp-03-25",
+           contents: prompt,
+       });
+       console.log(response.text);
+   }
+
+   main();
+   ```
+
+#### **Python Example (Optional)**
+For Python users:
+```python
+from google import genai
+
+client = genai.Client(api_key="YOUR_API_KEY")
+
+prompt = "Explain how neural networks work."
+response = client.models.generate_content(
+    model="gemini-2.5-pro-exp-03-25",
+    contents=prompt
+)
+print(response.text)
+```
+
+---
+
+### **3. Using Gemini for Coding Tasks**
+Gemini 2.5 Pro is especially effective for coding-related tasks such as generating code snippets, refactoring existing code, or creating entire applications.
+
+#### Example: Building a Simple Game (JavaScript)
+```javascript
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: "YOUR_API_KEY" });
+
+async function generateGame() {
+    const prompt = "Create a simple JavaScript game with interactive obstacles and scoring.";
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-pro-exp-03-25",
+        contents: prompt,
+    });
+    console.log(response.text); // Outputs the generated game code
+}
+
+generateGame();
+```
+
+---
+
+### **4. Advanced Features**
+Gemini 2.5 Pro supports advanced use cases:
+- **Multimodal Inputs**: Combine text with images or audio for richer interactions.
+- **Large Context Processing**: Handle datasets or codebases with up to 1 million tokens.
+- **Code Execution (Experimental)**: Ask the model to verify or execute generated code.
+
+Example of multimodal input:
+```javascript
+const prompt = {
+    text: "Analyze this image and explain its context.",
+    image: "base64_encoded_image_string"
+};
+
+const response = await ai.models.generateContent({
+    model: "gemini-2.5-pro-exp-03-25",
+    contents: prompt,
+});
+console.log(response.text);
+```
+
+---
+
+### **5. Testing and Debugging**
+Use tools like [Apidog](for debugging API requests) or integrate with Vertex AI for production-grade security and scalability.
+
+---
+
+## **Best Practices**
+1. Use structured prompts for better results (e.g., specify desired formats or constraints).
+2. Test in a sandbox environment before deploying to production.
+3. Monitor token usage to manage costs effectively.
+
+---
+
+## **Conclusion**
+Gemini 2.5 Pro is a cutting-edge AI tool that can be seamlessly integrated into applications using its API or SDKs like `@google/genai`. Its reasoning capabilities and support for coding tasks make it ideal for developers building intelligent applications.
+
+By following the steps above, you can start leveraging Gemini 2.5 Pro today to enhance your applications!
+
+Citations:
+[1] https://www.business-standard.com/technology/tech-news/google-integrates-gemini-2-5-pro-ai-model-into-deep-research-mode-details-125041000804_1.html
+[2] https://blog.google/technology/google-deepmind/gemini-model-thinking-updates-march-2025/
+[3] https://ai.google.dev/gemini-api/docs/thinking
+[4] https://apidog.com/blog/gemini-2-5-pro-api/
+[5] https://www.datacamp.com/tutorial/gemini-2-5-pro-api
+[6] https://www.cursor-ide.com/blog/free-gemini-25-pro-api-guide-2025-english
+[7] https://developers.googleblog.com/en/gemini-2-5-flash-pro-live-api-veo-2-gemini-api/
+[8] https://www.helicone.ai/blog/gemini-2.5-full-developer-guide
+[9] https://www.youtube.com/watch?v=RDOMKIw1aF4
+[10] https://developers.google.com/learn/pathways/solution-ai-gemini-getting-started-web
+[11] https://www.youtube.com/watch?v=NbYln7rgkDw
+[12] https://gemini.google/advanced/
+[13] https://gemini.google.com/updates
+[14] https://openrouter.ai/google/gemini-2.5-pro-preview-03-25/apps
+[15] https://blog.google/products/gemini/deep-research-gemini-2-5-pro-experimental/
+[16] https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro
+[17] https://cloud.google.com/blog/products/ai-machine-learning/gemini-2-5-pro-flash-on-vertex-ai
+[18] https://www.youtube.com/watch?v=NbYln7rgkDw
+[19] https://www.youtube.com/watch?v=f1QQhlRCf7A
+[20] https://ai.google.dev/gemini-api/docs/models
+[21] https://ai.google.dev/gemini-api/docs/rate-limits
+[22] https://developers.googleblog.com/en/gemini-2-5-flash-pro-live-api-veo-2-gemini-api/
+[23] https://www.reddit.com/r/perplexity_ai/comments/1jo70jh/gemini_25_pro_will_be_a_game_changer_if_it_gets/
+[24] https://huggingface.co/blog/proflead/google-gemini-2-5-pro
+[25] https://www.reddit.com/r/perplexity_ai/comments/1jts3sb/where_is_gemini_25_pro/
+[26] https://deepmind.google/technologies/gemini/pro/
+[27] https://codeassist.google
+[28] https://blog.google/technology/google-deepmind/gemini-model-thinking-updates-march-2025/
+[29] https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_2_5_pro.ipynb
+[30] https://ai.google.dev/gemini-api/docs/quickstart
+[31] https://www.youtube.com/watch?v=eWTV4gs57Do
+[32] https://www.datacamp.com/tutorial/gemini-2-5-pro-api
+[33] https://support.google.com/gemini/thread/334742147/use-gems-with-2-5-pro
+[34] https://www.cohorte.co/blog/getting-started-with-gemini-pro-2-5-build-a-simple-ai-agent
+[35] https://forum.cloudron.io/topic/13611/enable-gemini-2.5-pro-function-install-on-cloudron-needs-google-genai
+[36] https://www.reddit.com/r/ChatGPTCoding/comments/1jrp1tj/a_simple_guide_to_setting_up_gemini_25_pro_free/
+[37] https://www.youtube.com/watch?v=2gZQ3BETq8U
+[38] https://www.reddit.com/r/Bard/comments/1jw39rn/why_is_25_pro_so_much_worse_in_gemini_web_vs_ai/
+[39] https://discuss.ai.google.dev/t/gemini-2-5-pro-ending-the-turn-when-it-tries-calling-a-tool/78876
+[40] https://www.reddit.com/r/Bard/comments/1jw4u37/gemini_25_pro_threejs_3d_environment/
+[41] https://ai.google.dev/gemini-api/docs/libraries
+[42] https://cloud.google.com/vertex-ai/generative-ai/docs/samples?text=Gemini
+[43] https://www.reddit.com/r/Bard/comments/1jll0ri/made_a_thing_w_gemini_25_that_lets_you_feed_your/
+[44] https://dev.to/brylie/gemini-25-pro-a-developers-guide-to-googles-most-advanced-ai-53lf
+[45] https://blog.google/products/gemini/gemini-preview-model-billing-update/
+[46] https://wandb.ai/onlineinference/Gemini/reports/Getting-started-with-the-Gemini-2-5-Pro-reasoning-model-API--VmlldzoxMTk3MzgyNw
+[47] https://ai.google.dev/gemini-api/docs/pricing
+[48] https://ai.google.dev/gemini-api/docs/api-key
+[49] https://www.youtube.com/watch?v=4SoMe9xKTKo
+[50] https://www.appypie.io/blog/gemini-2-5-pro-experimental-guide
+[51] https://www.appypieautomate.ai/blog/gemini-2-5-pro-experimental-guide
+[52] https://www.zdnet.com/article/gemini-pro-2-5-is-a-stunningly-capable-coding-assistant-and-a-big-threat-to-chatgpt/
+[53] https://forum.cursor.com/t/gemini-2-5-pro-exp-03-25-settings/72369
+
+---
+Answer from Perplexity: pplx.ai/share

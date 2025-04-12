@@ -11,6 +11,7 @@ import fetch from "node-fetch";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { generateGeminiContent } from "./gemini-service";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
