@@ -52,6 +52,14 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const [completedAudio, setCompletedAudio] = useState<{
+    id: number;
+    title: string;
+    audioUrl: string;
+    text: string;
+    voice: string;
+    artworkUrl?: string;
+  } | null>(null);
   const [processingJob, setProcessingJob] = useState<{
     id: number;
     status: string;
@@ -83,17 +91,25 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   // Function to check job status
   const checkJobStatus = async (jobId: number) => {
     try {
+      console.log(`Checking status for job ${jobId}...`);
       const response = await fetch(`/api/text-to-speech/status/${jobId}`);
       
       if (!response.ok) {
+        console.error(`Failed to fetch job status: ${response.status}`);
         throw new Error(`Failed to fetch job status: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log(`Received status for job ${jobId}:`, data);
       
       // Update job state with latest information
       setProcessingJob(prev => {
         if (!prev) return null;
+        
+        // Log progress updates
+        if (prev.progress !== data.progress) {
+          console.log(`Progress updated: ${prev.progress}% -> ${data.progress}%`);
+        }
         
         return {
           ...prev,
@@ -105,15 +121,31 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       
       // Handle completion
       if (data.status === 'complete') {
+        console.log(`Job ${jobId} completed successfully!`);
+        
         // Stop polling
         if (intervalRef.current) {
+          console.log(`Clearing interval for completed job ${jobId}`);
           window.clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
         
         if (data.audioUrl) {
-          // Set as mutation data
-          mutation.reset();
+          console.log(`Audio URL received for job ${jobId}, updating UI`);
+          
+          // Create audio file object
+          const audioFile = {
+            id: jobId,
+            title: form.getValues('title'),
+            audioUrl: data.audioUrl,
+            text: form.getValues('text'),
+            voice: form.getValues('voice'),
+            artworkUrl: data.artworkUrl
+          };
+          
+          // Update our local state to show the completed audio
+          console.log("Setting completed audio:", audioFile);
+          setCompletedAudio(audioFile);
           
           // Call success callback
           onSuccess();
@@ -130,6 +162,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       }
       // Handle error
       else if (data.status === 'error') {
+        console.log(`Job ${jobId} failed with error: ${data.error}`);
+        
         // Stop polling
         if (intervalRef.current) {
           window.clearInterval(intervalRef.current);
@@ -208,6 +242,9 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     },
     onSuccess: (data) => {
       if (data) {
+        console.log("Received immediate completion data:", data);
+        // For immediate completions (not background jobs), set our completedAudio
+        setCompletedAudio(data);
         onSuccess();
         toast({
           title: "Success",
@@ -462,19 +499,19 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         </Card>
       )}
       
-      {/* Completed audio */}
-      {mutation.data && (
+      {/* Completed audio - show from both immediate and background processes */}
+      {(mutation.data || completedAudio) && (
         <div className="space-y-6 rounded-lg border p-6">
           <h2 className="text-lg font-semibold">Generated Audio</h2>
           <AudioPlayer
-            src={mutation.data.audioUrl}
-            title={mutation.data.title}
+            src={(mutation.data || completedAudio)?.audioUrl}
+            title={(mutation.data || completedAudio)?.title}
           />
-          {mutation.data.artworkUrl && (
+          {(mutation.data?.artworkUrl || completedAudio?.artworkUrl) && (
             <div>
               <h3 className="text-md font-medium mb-2">AI-Generated Artwork</h3>
               <img
-                src={mutation.data.artworkUrl}
+                src={(mutation.data?.artworkUrl || completedAudio?.artworkUrl)}
                 alt="Generated artwork"
                 className="rounded-lg w-full max-w-md mx-auto"
               />
