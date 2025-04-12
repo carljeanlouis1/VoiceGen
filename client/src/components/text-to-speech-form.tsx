@@ -141,11 +141,14 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
     try {
       console.log(`Checking status for job ${jobId}...`);
       
-      const result = await apiRequest(`/api/text-to-speech/status/${jobId}`, {
-        method: "GET"
-      });
+      const result = await fetch(`/api/text-to-speech/status/${jobId}`);
       
-      console.log(`Status for job ${jobId}:`, result);
+      if (!result.ok) {
+        throw new Error(`Failed to fetch job status: ${result.status}`);
+      }
+      
+      const data = await result.json();
+      console.log(`Status for job ${jobId}:`, data);
       
       // Only proceed if we're still processing this job
       if (!processingJob || processingJob.id !== jobId) {
@@ -158,20 +161,20 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         if (!prev) return null;
         
         // Log the progress update
-        if (prev.progress !== result.progress) {
-          console.log(`Progress updated: ${prev.progress}% -> ${result.progress}%`);
+        if (prev.progress !== data.progress) {
+          console.log(`Progress updated: ${prev.progress}% -> ${data.progress}%`);
         }
         
         return {
           ...prev,
-          status: result.status,
-          progress: result.progress,
-          error: result.error
+          status: data.status,
+          progress: data.progress,
+          error: data.error
         };
       });
       
       // If complete, get the file and clean up
-      if (result.status === 'complete') {
+      if (data.status === 'complete') {
         console.log(`Job ${jobId} completed successfully!`);
         
         // Clear the polling interval
@@ -180,14 +183,14 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
           setPollingInterval(null);
         }
         
-        if (result.audioUrl) {
-          console.log(`Audio URL received, length: ${result.audioUrl.length.toLocaleString()} chars`);
+        if (data.audioUrl) {
+          console.log(`Audio URL received, length: ${data.audioUrl.length.toLocaleString()} chars`);
           
           // Create audio file object with completed data
           const audioFile = { 
             id: jobId,
             title: form.getValues('title'),
-            audioUrl: result.audioUrl,
+            audioUrl: data.audioUrl,
             text: form.getValues('text'),
             voice: form.getValues('voice')
           };
@@ -208,8 +211,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         }
       } 
       // If error, show error toast and clean up
-      else if (result.status === 'error') {
-        console.log(`Job ${jobId} failed with error: ${result.error}`);
+      else if (data.status === 'error') {
+        console.log(`Job ${jobId} failed with error: ${data.error}`);
         
         // Clear the polling interval
         if (pollingInterval) {
@@ -223,13 +226,13 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
         // Show error toast
         toast({
           title: "Error",
-          description: result.error || "Failed to convert text to speech",
+          description: data.error || "Failed to convert text to speech",
           variant: "destructive",
         });
       }
       // If still processing, just continue with updates
       else {
-        console.log(`Job ${jobId} is still processing (${result.progress}%)`);
+        console.log(`Job ${jobId} is still processing (${data.progress}%)`);
       }
     } catch (error: any) {
       console.error("Error checking job status:", error);
@@ -264,16 +267,18 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       }, 2000);
       
       setPollingInterval(intervalId);
+      
+      // Clean up only when the component unmounts or the ID changes
+      return () => {
+        console.log(`Cleaning up polling interval for job ${processingJob.id}`);
+        clearInterval(intervalId);
+        setPollingInterval(null);
+      };
     }
     
-    // Clean up on unmount or when processing job changes/completes
-    return () => {
-      if (pollingInterval) {
-        console.log(`Cleaning up polling interval`);
-        clearInterval(pollingInterval);
-      }
-    };
-  }, [processingJob?.id, pollingInterval, checkJobStatus]);
+    // Return empty cleanup function if no new interval was set
+    return () => {};
+  }, [processingJob?.id, checkJobStatus]);
 
   const textLength = form.watch("text").length;
   const selectedVoice = form.watch("voice");
