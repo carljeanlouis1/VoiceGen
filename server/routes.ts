@@ -555,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           content: z.string()
         })),
         context: z.string().optional().default(""),
-        model: z.enum(["claude", "gpt"]).default("claude"),
+        model: z.enum(["claude", "gpt", "gemini"]).default("claude"),
         useContext: z.boolean().default(true)
       });
 
@@ -633,6 +633,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Extract the response content
         responseText = response.choices[0].message.content || "Sorry, I couldn't process that request properly.";
+      }
+      // Handle Gemini 2.5 Pro requests
+      else if (model === "gemini") {
+        // Try to convert messages to Gemini format
+        let systemPrompt = "";
+        const lastUserMessage = messages.filter(msg => msg.role === "user").pop()?.content || "";
+        
+        // Extract system message if it exists
+        const systemMessage = messages.find(msg => msg.role === "system");
+        if (systemMessage) {
+          systemPrompt = systemMessage.content;
+        }
+        
+        // If using context, add it to the system prompt
+        if (useContext && context) {
+          systemPrompt = `You are Gemini 2.5 Pro, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`;
+        } else if (!systemPrompt) {
+          systemPrompt = "You are Gemini 2.5 Pro, an advanced AI assistant. Provide helpful, detailed, and thoughtful responses to the user's questions.";
+        }
+        
+        try {
+          // Generate content with Gemini
+          const result = await generateGeminiContent({
+            prompt: lastUserMessage,
+            systemPrompt: systemPrompt,
+            temperature: 0.7,
+            maxOutputTokens: 1000
+          });
+          
+          responseText = result.text;
+        } catch (geminiError: any) {
+          log(`Error in Gemini chat: ${geminiError.message}`);
+          throw new Error(`Gemini API error: ${geminiError.message}`);
+        }
       }
       
       // Return the response to the client

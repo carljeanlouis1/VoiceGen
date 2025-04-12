@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, MessageSquare, Bot, FileText, Brain } from "lucide-react";
+import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Message {
@@ -17,7 +17,7 @@ interface Message {
   content: string;
 }
 
-type ModelType = "claude" | "gpt";
+type ModelType = "claude" | "gpt" | "gemini";
 
 export default function Chat() {
   // State for file selection and context mode
@@ -42,7 +42,16 @@ export default function Chat() {
     : undefined;
   
   // Determine model display name based on selected type
-  const modelName = modelType === "claude" ? "Claude Sonnet 3.7" : "GPT-4o";
+  const getModelName = () => {
+    switch(modelType) {
+      case "claude": return "Claude Sonnet 3.7";
+      case "gpt": return "GPT-4o";
+      case "gemini": return "Gemini 2.5 Pro";
+      default: return "AI Assistant";
+    }
+  };
+  
+  const modelName = getModelName();
   
   // Auto scroll to bottom of messages
   useEffect(() => {
@@ -204,10 +213,9 @@ export default function Chat() {
           </Tabs>
           
           {/* Model selection */}
-          <div className="flex items-center justify-between gap-4 pt-2">
+          <div className="flex flex-col gap-3 pt-2">
             <div className="font-medium text-sm">Choose AI Model:</div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant={modelType === "claude" ? "default" : "outline"}
                   size="sm"
@@ -215,7 +223,7 @@ export default function Chat() {
                   className="flex items-center gap-1"
                 >
                   <Bot className="h-4 w-4" />
-                  <span>Claude</span>
+                  <span>Claude Sonnet</span>
                 </Button>
                 <Button
                   variant={modelType === "gpt" ? "default" : "outline"}
@@ -226,7 +234,15 @@ export default function Chat() {
                   <Bot className="h-4 w-4" />
                   <span>GPT-4o</span>
                 </Button>
-              </div>
+                <Button
+                  variant={modelType === "gemini" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleModelChange("gemini")}
+                  className="flex items-center gap-1"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Gemini 2.5 Pro</span>
+                </Button>
             </div>
           </div>
           
