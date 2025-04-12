@@ -9,22 +9,32 @@ import Convert from "./pages/convert";
 import Library from "./pages/library";
 import Chat from "./pages/chat";
 import Search from "./pages/search";
+import { ThemeProvider, useTheme } from "./lib/theme-provider";
+import { ThemeToggle } from "./components/theme-toggle";
 
 function Navbar() {
   const [location] = useLocation();
+  const { theme } = useTheme();
   
   // Use a different style for the navbar on the landing page
   const isLandingPage = location === "/";
   
+  // Adjust navbar style based on theme and page
+  const navbarBg = isLandingPage 
+    ? 'bg-transparent' 
+    : theme === 'light' 
+      ? 'bg-white/80 backdrop-blur-sm border-b'
+      : 'bg-gray-900/80 backdrop-blur-sm border-b border-gray-800';
+  
   return (
-    <nav className={`${isLandingPage ? 'bg-transparent' : 'bg-white/80 backdrop-blur-sm border-b'} sticky top-0 z-50`}>
+    <nav className={`${navbarBg} sticky top-0 z-50 transition-colors duration-300`}>
       <div className="container flex h-16 items-center justify-between">
         <Link href="/">
           <span className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent cursor-pointer">
             VoiceGen
           </span>
         </Link>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <Button variant="ghost" asChild>
             <Link href="/convert">Convert</Link>
           </Button>
@@ -37,6 +47,7 @@ function Navbar() {
           <Button variant="ghost" asChild>
             <Link href="/search">Search</Link>
           </Button>
+          <ThemeToggle />
         </div>
       </div>
     </nav>
@@ -56,14 +67,22 @@ function Router() {
   );
 }
 
+function AppContent() {
+  return (
+    <div className="min-h-screen">
+      <Navbar />
+      <Router />
+    </div>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen">
-        <Navbar />
-        <Router />
-      </div>
-      <Toaster />
+      <ThemeProvider>
+        <AppContent />
+        <Toaster />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

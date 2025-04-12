@@ -7,11 +7,30 @@
     @apply border-border;
   }
 
+  :root {
+    --gradient-start: theme('colors.indigo.50');
+    --gradient-middle: theme('colors.white');
+    --gradient-end: theme('colors.purple.50');
+    --card-start: theme('colors.white');
+    --card-end: theme('colors.indigo.50/50');
+  }
+
+  .dark {
+    --gradient-start: theme('colors.indigo.950');
+    --gradient-middle: theme('colors.gray.900');
+    --gradient-end: theme('colors.purple.950');
+    --card-start: theme('colors.gray.900');
+    --card-end: theme('colors.indigo.950/70');
+  }
+
   body {
-    @apply font-sans antialiased bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen text-foreground;
+    @apply font-sans antialiased min-h-screen text-foreground transition-colors duration-300;
+    background: linear-gradient(to bottom right, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
   }
 }
 
 .card-gradient {
-  @apply bg-gradient-to-br from-white to-indigo-50/50;
+  background: linear-gradient(to bottom right, var(--card-start), var(--card-end));
+  @apply border border-border;
+  transition: background-color 0.3s, border-color 0.3s;
 }
