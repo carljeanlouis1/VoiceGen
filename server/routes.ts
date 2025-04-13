@@ -640,24 +640,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       // Handle Gemini 2.5 Pro requests
       else if (model === "gemini") {
-        // Try to convert messages to Gemini format
-        let systemPrompt = "";
-        const lastUserMessage = messages.filter(msg => msg.role === "user").pop()?.content || "";
-        
-        // Extract system message if it exists
-        const systemMessage = messages.find(msg => msg.role === "system");
-        if (systemMessage) {
-          systemPrompt = systemMessage.content;
-        }
-        
-        // If using context, add it to the system prompt
-        if (useContext && context) {
-          systemPrompt = `You are Gemini 2.5 Pro, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`;
-        } else if (!systemPrompt) {
-          systemPrompt = "You are Gemini 2.5 Pro, an advanced AI assistant. Provide helpful, detailed, and thoughtful responses to the user's questions.";
-        }
-        
         try {
+          log("Processing Gemini chat request");
+          
+          // Extract user messages and build chat history
+          const chatMessages = messages.filter(msg => msg.role !== "system");
+          const lastUserMessage = chatMessages.filter(msg => msg.role === "user").pop()?.content || "";
+          
+          // Determine system prompt
+          let systemPrompt = "";
+          
+          // Extract system message if it exists
+          const systemMessage = messages.find(msg => msg.role === "system");
+          if (systemMessage) {
+            systemPrompt = systemMessage.content;
+          }
+          
+          // If using context, override with context-specific system prompt
+          if (useContext && context) {
+            systemPrompt = `You are Gemini 2.5 Pro, an advanced AI assistant. You'll help analyze and discuss the following text content. Here's the context:\n\n${context}\n\nProvide detailed, thoughtful responses to questions about this content. Stay focused on the provided context.`;
+          } else if (!systemPrompt) {
+            // Default system prompt
+            systemPrompt = "You are Gemini 2.5 Pro, an advanced AI assistant. Provide helpful, detailed, and thoughtful responses to the user's questions.";
+          }
+          
+          log(`Gemini: Using system prompt (${systemPrompt.length} chars) and user message: ${lastUserMessage.substring(0, 100)}...`);
+          
           // Generate content with Gemini
           const result = await generateGeminiContent({
             prompt: lastUserMessage,
@@ -667,6 +675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           
           responseText = result.text;
+          log(`Gemini response generated (${responseText.length} chars)`);
         } catch (geminiError: any) {
           log(`Error in Gemini chat: ${geminiError.message}`);
           throw new Error(`Gemini API error: ${geminiError.message}`);
