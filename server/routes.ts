@@ -26,6 +26,10 @@ if (!process.env.ANTHROPIC_API_KEY) {
   throw new Error("ANTHROPIC_API_KEY environment variable is required");
 }
 
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY environment variable is required");
+}
+
 // Audio directory for file storage
 const AUDIO_DIR = path.join(process.cwd(), 'public/audio');
 
