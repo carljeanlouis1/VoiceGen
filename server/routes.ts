@@ -363,6 +363,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           images: data.images,
         });
         
+        // Check if we got an empty response from Gemini
+        if (!result.text || result.text.trim() === "") {
+          log("Empty response detected from Gemini in /api/gemini/generate");
+          result.text = "I apologize, but I wasn't able to generate a response for that query. This might be due to content safety filters or limitations in my training data. Could you try rephrasing your request?";
+        }
+        
         res.json(result);
       } catch (error: any) {
         log(`Error in Gemini content generation: ${error.message}`);
@@ -679,6 +685,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           
           responseText = result.text;
+          
+          // Additional check to ensure we don't return empty responses to the client
+          if (!responseText || responseText.trim() === "") {
+            log("Empty response detected from Gemini in routes.ts");
+            responseText = "I apologize, but I wasn't able to generate a response for that query. This might be due to content safety filters or limitations in my training. Could you try rephrasing your question?";
+          }
+          
           log(`Gemini response generated (${responseText.length} chars)`);
         } catch (geminiError: any) {
           log(`Error in Gemini chat: ${geminiError.message}`);

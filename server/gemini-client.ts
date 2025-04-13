@@ -114,8 +114,19 @@ export async function generateGeminiContent(options: GenerateContentOptions): Pr
       const result = await chat.sendMessage(contentParts);
       const response = result.response;
       
+      // Get the text response
+      const responseText = response.text();
+      
+      // Check if the response is empty and provide a helpful error message
+      if (!responseText || responseText.trim() === "") {
+        log("Gemini returned an empty response");
+        return {
+          text: "I apologize, but I wasn't able to generate a response for that query. This might be due to content safety filters or limitations in my training. Could you try rephrasing your question?",
+        };
+      }
+      
       return {
-        text: response.text(),
+        text: responseText,
         // Usage metrics aren't directly available in the SDK
       };
     } else if (geminiClient) {
@@ -127,8 +138,19 @@ export async function generateGeminiContent(options: GenerateContentOptions): Pr
       
       const response = result.response;
       
+      // Get the text response
+      const responseText = response.text();
+      
+      // Check if the response is empty and provide a helpful error message
+      if (!responseText || responseText.trim() === "") {
+        log("Gemini returned an empty response");
+        return {
+          text: "I apologize, but I wasn't able to generate a response for that query. This might be due to content safety filters or limitations in my training. Could you try rephrasing your question?",
+        };
+      }
+      
       return {
-        text: response.text(),
+        text: responseText,
         // Usage metrics aren't directly available in the SDK
       };
     } else {
