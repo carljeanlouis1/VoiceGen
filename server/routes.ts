@@ -11,7 +11,7 @@ import fetch from "node-fetch";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { generateGeminiContent } from "./gemini-service";
+import { generateGeminiContent, initGeminiClient } from "./gemini-client";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
@@ -340,6 +340,10 @@ const geminiContentSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize Gemini client
+  log("Initializing Gemini client...");
+  initGeminiClient();
+  
   // Generate voice samples
   await generateVoiceSamples();
   

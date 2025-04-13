@@ -1,0 +1,206 @@
+To integrate Google's Gemini 2.5 Pro into a Node.js application, you'll need to use the official SDK with additional configuration for advanced features. Here's a complete implementation:
+
+## Core Setup
+```bash
+npm install @google/generative-ai
+```
+
+```javascript
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.5-pro-exp-03-25",
+  apiVersion: "v1beta" // Required for advanced features [6][8]
+});
+```
+
+## Basic Chat Implementation
+```javascript
+async function basicChat(prompt) {
+  const chat = model.startChat({
+    history: [],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 2000
+    }
+  });
+
+  const result = await chat.sendMessage(prompt);
+  return result.response.text();
+}
+```
+
+## Advanced Features
+
+**1. Streaming Responses**
+```javascript
+async function streamingChat(prompt) {
+  const chat = model.startChat();
+  const result = await chat.sendMessageStream(prompt);
+
+  for await (const chunk of result.stream) {
+    process.stdout.write(chunk.text());
+  }
+}
+```
+
+**2. Function Calling**
+```javascript
+const tools = {
+  getWeather: {
+    name: "get_current_weather",
+    description: "Get current weather",
+    parameters: {
+      type: "object",
+      properties: {
+        location: { type: "string" }
+      },
+      required: ["location"]
+    }
+  }
+};
+
+async function functionCallingChat() {
+  const chat = model.startChat({
+    tools: [tools.getWeather],
+    toolConfig: {
+      functionCalling: "auto"
+    }
+  });
+
+  const result = await chat.sendMessage("What's the weather in New York?");
+  console.log(result.response.functionCalls());
+}
+```
+
+**3. File Upload & Multimodal Input**
+```javascript
+const fs = require("fs").promises;
+
+async function analyzeImage(imagePath) {
+  const image = await fs.readFile(imagePath);
+  const base64Image = image.toString("base64");
+
+  const result = await model.generateContent({
+    contents: [{
+      parts: [
+        { text: "Describe this image:" },
+        { inlineData: {
+          mimeType: "image/jpeg",
+          data: base64Image
+        }}
+      ]
+    }]
+  });
+
+  return result.response.text();
+}
+```
+
+## Full Application Example
+```javascript
+const express = require("express");
+const app = express();
+app.use(express.json());
+
+app.post("/chat", async (req, res) => {
+  try {
+    const { message, files } = req.body;
+    const chat = model.startChat();
+    
+    const contents = [message];
+    if (files) {
+      contents.push(...files.map(file => ({
+        inlineData: {
+          mimeType: file.mimeType,
+          data: file.data
+        }
+      })));
+    }
+
+    const result = await chat.sendMessage(contents);
+    res.json({
+      response: result.response.text(),
+      functionCalls: result.response.functionCalls(),
+      safetyRatings: result.response.safetyRatings
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(3000, () => console.log("Server running on port 3000"));
+```
+
+Key features enabled:
+- **1M token context window** for analyzing large codebases[3][8]
+- **Multimodal processing** (text, images, files)[1][3]
+- **Real-time streaming** for responsive interactions[5][7]
+- **Safety filters** and content moderation[7][8]
+
+To use this implementation:
+1. Get API key from [Google AI Studio](https://aistudio.google.com)[1][8]
+2. Set `GEMINI_API_KEY` environment variable
+3. Handle rate limits (currently 60 RPM free tier)[3][5]
+
+For production use, consider implementing:
+- Conversation history management
+- Error fallback mechanisms
+- Content moderation layer
+- Rate limiting middleware
+
+```bash
+# Recommended production dependencies
+npm install express dotenv @google/generative-ai
+```
+
+Citations:
+[1] https://huggingface.co/blog/proflead/google-gemini-2-5-pro
+[2] https://dev.to/brylie/gemini-25-pro-a-developers-guide-to-googles-most-advanced-ai-53lf
+[3] https://www.infoq.com/news/2025/03/gemini-2-5-pro/
+[4] https://www.datacamp.com/tutorial/gemini-2-5-pro-api
+[5] https://www.cursor-ide.com/blog/free-gemini-25-pro-api-guide-2025-english
+[6] https://stackoverflow.com/questions/78102268/gemini-nodejs-sdk-chatsession-with-function-calling
+[7] https://apidog.com/blog/gemini-2-5-pro-api/
+[8] https://habr.com/en/articles/897832/
+[9] https://github.com/google-gemini/cookbook
+[10] https://community.n8n.io/t/gemini-2-5-pro-dont-acept-2-0-temperature/99411
+[11] https://www.youtube.com/watch?v=JW69tWxLFQU
+[12] https://www.reddit.com/r/ChatGPTCoding/comments/1jrp1tj/a_simple_guide_to_setting_up_gemini_25_pro_free/
+[13] https://ai.google.dev/gemini-api/tutorials/web-app
+[14] https://ai.google.dev/gemini-api/docs/quickstart
+[15] https://stackoverflow.com/questions/78412714/how-to-create-an-ai-chatbot-with-google-gemini-using-node-js
+[16] https://www.reddit.com/r/GeminiAI/comments/1js5w34/getting_started_with_gemini_25_pro_ai_studio_vs/
+[17] https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
+[18] https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_2_5_pro.ipynb
+[19] https://ai.google.dev/gemini-api/docs/models
+[20] https://cloud.google.com/vertex-ai/generative-ai/docs/models
+[21] https://github.blog/changelog/2025-04-11-copilot-chat-users-can-use-the-gemini-2-5-pro-model-in-public-preview/
+[22] https://gemini.google.com/updates
+[23] https://cloud.google.com/blog/products/ai-machine-learning/gemini-2-5-pro-flash-on-vertex-ai
+[24] https://www.youtube.com/watch?v=hqBkKMT1IPQ
+[25] https://developers.googleblog.com/en/gemini-2-5-flash-pro-live-api-veo-2-gemini-api/
+[26] https://gemini.google/advanced/
+[27] https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro
+[28] https://blog.google/products/gemini/deep-research-gemini-2-5-pro-experimental/
+[29] https://proflead.dev/posts/google-gemini-2-5-pro-tutorial/
+[30] https://developers.google.com/learn/pathways/solution-ai-gemini-101
+[31] https://ai.google.dev/gemini-api/docs/libraries
+[32] https://huggingface.co/blog/proflead/google-gemini-2-5-pro
+[33] https://cloud.google.com/vertex-ai/generative-ai/docs/samples?text=Gemini
+[34] https://www.youtube.com/watch?v=oJDBCA7ftjw
+[35] https://www.youtube.com/watch?v=aTM8BLD_Ihg
+[36] https://www.youtube.com/watch?v=Z8F6FvMrN4o
+[37] https://www.reddit.com/r/Bard/comments/1f8xhy0/not_able_to_use_gemini_tuned_model_form_node_js/
+[38] https://www.datacamp.com/tutorial/gemini-2-5-pro-api
+[39] https://deepmind.google/technologies/gemini/pro/
+[40] https://www.datacamp.com/blog/gemini-2-5-pro
+[41] https://blog.google/technology/google-deepmind/gemini-model-thinking-updates-march-2025/
+[42] https://substack.com/home/post/p-160054564
+[43] https://deepmind.google/technologies/gemini/
+[44] https://habr.com/en/articles/897832/
+
+---
+Answer from Perplexity: pplx.ai/share
