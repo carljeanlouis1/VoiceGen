@@ -100,17 +100,27 @@ export default function Chat() {
         })
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        setMessages(prev => [...prev, { 
-          role: "assistant", 
-          content: data.response 
-        }]);
-      } else {
-        setMessages(prev => [...prev, { 
-          role: "assistant", 
-          content: `Error: ${data.message || `Failed to get a response from ${modelName}.`}`
-        }]);
+      if (!response.ok) {
+        throw new Error(`Failed to get a response from ${modelName}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      // Add an empty assistant message that we'll update
+      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = new TextDecoder().decode(value);
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          lastMessage.content += text;
+          return newMessages;
+        });
       }
     } catch (error) {
       console.error("Failed to get response:", error);

@@ -53,7 +53,7 @@ export function initGeminiClient() {
 /**
  * Generate content using Gemini 2.5 Pro via the official SDK
  */
-export async function generateGeminiContent(options: GenerateContentOptions): Promise<GenerateContentResult> {
+export async function generateGeminiContent(options: GenerateContentOptions, onStream?: (text: string) => void): Promise<GenerateContentResult> {
   try {
     // Initialize client if not already initialized
     if (!geminiClient) {
@@ -86,11 +86,6 @@ export async function generateGeminiContent(options: GenerateContentOptions): Pr
       topK: options.topK || 40,
       topP: options.topP || 0.95,
       maxOutputTokens: options.maxOutputTokens || 1000,
-    };
-    
-    // Create request options
-    let requestOptions: any = {
-      generationConfig,
     };
     
     // Handle system prompt if provided
