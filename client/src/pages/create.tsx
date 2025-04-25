@@ -99,40 +99,19 @@ export default function CreatePage() {
         ? customSystemPrompt 
         : CONTENT_TEMPLATES[contentType as keyof typeof CONTENT_TEMPLATES];
       
-      const response = await fetch("/api/gemini/generate", {
+      return apiRequest("/api/gemini/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        data: {
           prompt,
           systemPrompt,
           temperature,
           maxOutputTokens,
           images: useImages ? imageBase64 : undefined
-        })
+        }
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate content");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      setGeneratedContent("");
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const text = new TextDecoder().decode(value);
-        setGeneratedContent(prev => prev + text);
-      }
-
-      return { text: generatedContent };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setGeneratedContent(data.text);
       toast({
         title: "Content generated",
         description: "Your content has been created successfully!"
