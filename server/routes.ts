@@ -231,7 +231,7 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         text: data.text,
         voice: data.voice,
         audioUrl,
-        duration: Math.ceil(audioBuffer.length / 16000), // Approximate duration
+        duration: Math.ceil(audioBuffer.length / 32000), // Better estimate for MP3 duration at 128kbps (16KB/s)
         summary,
         artworkUrl
       });
@@ -447,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           text: data.text,
           voice: data.voice,
           audioUrl,
-          duration: Math.ceil(audioBuffer.length / 16000), // Approximate duration
+          duration: Math.ceil(audioBuffer.length / 32000), // Better estimate for MP3 duration at 128kbps (16KB/s)
           summary,
           artworkUrl
         });
@@ -507,13 +507,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Audio file not found" });
     }
     
-    // Set appropriate headers and serve the file
-    res.setHeader('Content-Type', 'audio/mp3');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-    
-    // Stream the file instead of loading it all into memory
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    try {
+      // Get file stats for Content-Length and duration estimation
+      const stats = fs.statSync(filePath);
+      const fileSize = stats.size;
+      
+      // Estimate audio duration based on file size (rough approximation)
+      const estimatedDuration = Math.ceil(fileSize / 16000); // ~16KB per second at 128kbps
+      
+      // Set appropriate headers
+      res.setHeader('Content-Type', 'audio/mp3');
+      res.setHeader('Content-Length', fileSize);
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+      res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
+      
+      // Stream the file instead of loading it all into memory
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error: any) {
+      log(`Error serving audio file ${filename}: ${error.message}`);
+      res.status(500).json({ error: "Failed to serve audio file" });
+    }
   });
 
   // Endpoint to check job status
