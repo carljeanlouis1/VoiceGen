@@ -8,10 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send } from "lucide-react";
+import { 
+  Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
+  Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { AVAILABLE_VOICES } from "@shared/schema";
 
 // Predefined system prompts for different content types
 const CONTENT_TEMPLATES = {
@@ -50,8 +55,18 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Models available for podcast creation
+const PODCAST_MODELS = [
+  { id: "gpt", label: "GPT-4o", description: "OpenAI's advanced multimodal model" },
+  { id: "claude", label: "Claude 3.7", description: "Anthropic's most capable model" },
+];
+
 export default function CreatePage() {
   const { toast } = useToast();
+  // Mode selection state
+  const [createMode, setCreateMode] = useState<"content" | "podcast">("content");
+  
+  // Content creation states
   const [prompt, setPrompt] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
   const [contentType, setContentType] = useState<keyof typeof CONTENT_TEMPLATES | "custom">("story");
@@ -63,6 +78,19 @@ export default function CreatePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [maxOutputTokens, setMaxOutputTokens] = useState(4000);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Podcast creation states
+  const [podcastTopic, setPodcastTopic] = useState("");
+  const [podcastDuration, setPodcastDuration] = useState(10); // Default 10 minutes
+  const [podcastModel, setPodcastModel] = useState<"gpt" | "claude">("gpt");
+  const [podcastMultipart, setPodcastMultipart] = useState(false);
+  const [podcastParts, setPodcastParts] = useState(1);
+  const [podcastVoice, setPodcastVoice] = useState<typeof AVAILABLE_VOICES[number]>(AVAILABLE_VOICES[0]);
+  const [podcastScript, setPodcastScript] = useState("");
+  const [podcastResearchResults, setPodcastResearchResults] = useState("");
+  const [podcastResearchFinished, setPodcastResearchFinished] = useState(false);
+  const [currentPodcastPart, setCurrentPodcastPart] = useState(1);
+  const [previousPartContent, setPreviousPartContent] = useState("");
 
   // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,49 +171,165 @@ export default function CreatePage() {
     }
   };
 
+  // Mutation for podcast script generation
+  const podcastResearchMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/podcast/research", {
+        method: "POST",
+        data: {
+          topic: podcastTopic,
+          model: podcastModel,
+          targetDuration: podcastDuration,
+          voice: podcastVoice,
+          part: currentPodcastPart,
+          totalParts: podcastMultipart ? podcastParts : 1,
+          previousPartContent: previousPartContent,
+          searchResults: podcastResearchResults
+        }
+      });
+    },
+    onSuccess: (data) => {
+      setPodcastScript(data.script);
+      if (!podcastResearchResults) {
+        setPodcastResearchFinished(true);
+      }
+      toast({
+        title: "Podcast script generated",
+        description: `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to generate podcast script: ${error.message || "Unknown error"}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Text-to-speech conversion for the podcast script
+  const ttsConversionMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/text-to-speech", {
+        method: "POST",
+        data: {
+          title: `${podcastTopic} - Part ${currentPodcastPart}`,
+          text: podcastScript,
+          voice: podcastVoice,
+          generateArtwork: true
+        }
+      });
+    },
+    onSuccess: (data) => {
+      // Save the last part's content for continuity
+      setPreviousPartContent(podcastScript);
+      
+      // If we have more parts to generate, increment part
+      if (podcastMultipart && currentPodcastPart < podcastParts) {
+        setCurrentPodcastPart(prev => prev + 1);
+        setPodcastScript("");
+      }
+      
+      toast({
+        title: "Podcast audio created",
+        description: `Audio for part ${currentPodcastPart} has been added to your library`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create podcast audio: ${error.message || "Unknown error"}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Reset the podcast creation workflow
+  const resetPodcastWorkflow = () => {
+    setPodcastScript("");
+    setPodcastResearchResults("");
+    setPodcastResearchFinished(false);
+    setCurrentPodcastPart(1);
+    setPreviousPartContent("");
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6 max-w-6xl">
       <div className="flex flex-col space-y-2">
         <h1 className="text-3xl font-bold">Content Creator</h1>
-        <p className="text-muted-foreground">Create AI-generated content with Gemini 2.5 Pro</p>
+        <p className="text-muted-foreground">Create AI-generated content for your projects</p>
       </div>
+      
+      {/* Mode Selection */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button 
+              onClick={() => setCreateMode("content")}
+              variant={createMode === "content" ? "default" : "outline"}
+              className="flex items-center gap-2 py-8 px-4 h-auto"
+              size="lg"
+            >
+              <Pencil className="h-6 w-6" />
+              <div className="flex flex-col items-start">
+                <span className="text-lg font-medium">Content Creation</span>
+                <span className="text-xs text-muted-foreground">Create articles, stories, and marketing content</span>
+              </div>
+            </Button>
+            
+            <Button 
+              onClick={() => setCreateMode("podcast")}
+              variant={createMode === "podcast" ? "default" : "outline"}
+              className="flex items-center gap-2 py-8 px-4 h-auto"
+              size="lg"
+            >
+              <Headphones className="h-6 w-6" />
+              <div className="flex flex-col items-start">
+                <span className="text-lg font-medium">Podcast Creation</span>
+                <span className="text-xs text-muted-foreground">Create research-backed audio content</span>
+              </div>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Content Type</CardTitle>
-              <CardDescription>Select the type of content you want to generate</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={contentType} onValueChange={(value) => setContentType(value as any)} className="w-full">
-                <TabsList className="grid grid-cols-3 mb-4">
-                  {CONTENT_TYPES.slice(0, 6).map(type => (
-                    <TabsTrigger key={type.id} value={type.id}>{type.label}</TabsTrigger>
+      {createMode === "content" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Content Type</CardTitle>
+                <CardDescription>Select the type of content you want to generate</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={contentType} onValueChange={(value) => setContentType(value as any)} className="w-full">
+                  <TabsList className="grid grid-cols-3 mb-4">
+                    {CONTENT_TYPES.slice(0, 6).map(type => (
+                      <TabsTrigger key={type.id} value={type.id}>{type.label}</TabsTrigger>
+                    ))}
+                  </TabsList>
+                  
+                  {CONTENT_TYPES.map(type => (
+                    <TabsContent key={type.id} value={type.id} className="space-y-4">
+                      <p className="text-sm text-muted-foreground">{type.description}</p>
+                      
+                      {type.id === "custom" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="systemPrompt">Custom System Instructions</Label>
+                          <Textarea
+                            id="systemPrompt"
+                            placeholder="Provide custom instructions to guide the AI..."
+                            value={customSystemPrompt}
+                            onChange={(e) => setCustomSystemPrompt(e.target.value)}
+                            className="min-h-[120px]"
+                          />
+                        </div>
+                      )}
+                    </TabsContent>
                   ))}
-                </TabsList>
-                
-                {CONTENT_TYPES.map(type => (
-                  <TabsContent key={type.id} value={type.id} className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{type.description}</p>
-                    
-                    {type.id === "custom" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="systemPrompt">Custom System Instructions</Label>
-                        <Textarea
-                          id="systemPrompt"
-                          placeholder="Provide custom instructions to guide the AI..."
-                          value={customSystemPrompt}
-                          onChange={(e) => setCustomSystemPrompt(e.target.value)}
-                          className="min-h-[120px]"
-                        />
-                      </div>
-                    )}
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </CardContent>
-          </Card>
+                </Tabs>
+              </CardContent>
+            </Card>
 
           <Card>
             <CardHeader>
@@ -387,6 +531,210 @@ export default function CreatePage() {
           </Card>
         </div>
       </div>
+    ) : (
+        /* Podcast Creation UI */
+        <div className="grid grid-cols-1 gap-6">
+          {/* Input Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Create Podcast</CardTitle>
+              <CardDescription>Generate research-backed podcast scripts and audio</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Step 1: Topic Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="podcast-topic">Podcast Topic</Label>
+                <Input
+                  id="podcast-topic"
+                  placeholder="Enter a topic for your podcast..."
+                  value={podcastTopic}
+                  onChange={(e) => setPodcastTopic(e.target.value)}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Choose a specific topic for your podcast. More specific topics yield better results.
+                </p>
+              </div>
+              
+              {/* Step 2: Model Selection */}
+              <div className="space-y-2">
+                <Label>AI Model</Label>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  {PODCAST_MODELS.map(model => (
+                    <div 
+                      key={model.id}
+                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                        podcastModel === model.id 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setPodcastModel(model.id as "gpt" | "claude")}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                          podcastModel === model.id ? 'bg-primary' : 'border border-muted-foreground'
+                        }`}>
+                          {podcastModel === model.id && (
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className="font-medium">{model.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">{model.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Step 3: Duration and Parts */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="podcast-duration">Target Duration: {podcastDuration} minutes</Label>
+                  </div>
+                  <Slider
+                    id="podcast-duration"
+                    min={5}
+                    max={60}
+                    step={5}
+                    value={[podcastDuration]}
+                    onValueChange={(value) => setPodcastDuration(value[0])}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Choose the approximate duration for your podcast. Longer durations will create more detailed content.
+                  </p>
+                </div>
+                
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="multipart-toggle">Multi-part Podcast</Label>
+                    <Switch
+                      id="multipart-toggle"
+                      checked={podcastMultipart}
+                      onCheckedChange={setPodcastMultipart}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Split your podcast into multiple parts for better organization and management.
+                  </p>
+                </div>
+                
+                {podcastMultipart && (
+                  <div className="space-y-2 pl-4 border-l-2 border-muted">
+                    <Label htmlFor="podcast-parts">Number of Parts: {podcastParts}</Label>
+                    <Slider
+                      id="podcast-parts"
+                      min={2}
+                      max={6}
+                      step={1}
+                      value={[podcastParts]}
+                      onValueChange={(value) => setPodcastParts(value[0])}
+                    />
+                  </div>
+                )}
+              </div>
+              
+              {/* Step 4: Voice Selection */}
+              <div className="space-y-2">
+                <Label>Voice Selection</Label>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  {AVAILABLE_VOICES.map(voice => (
+                    <div 
+                      key={voice} 
+                      className={`flex items-center space-x-2 p-2 rounded cursor-pointer ${
+                        podcastVoice === voice ? 'bg-primary/10' : 'hover:bg-muted'
+                      }`}
+                      onClick={() => setPodcastVoice(voice)}
+                    >
+                      <div className={`w-4 h-4 rounded-full border ${
+                        podcastVoice === voice ? 'border-primary bg-primary' : 'border-muted-foreground'
+                      }`}>
+                        {podcastVoice === voice && (
+                          <div className="w-2 h-2 rounded-full bg-white m-auto" />
+                        )}
+                      </div>
+                      <Label className="capitalize cursor-pointer">{voice}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                onClick={() => podcastResearchMutation.mutate()}
+                disabled={podcastTopic.trim() === "" || podcastResearchMutation.isPending}
+              >
+                {podcastResearchMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Researching & Writing...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Research and Generate Script
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          {/* Results Display */}
+          {podcastScript && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Podcast Script - Part {currentPodcastPart}/{podcastMultipart ? podcastParts : 1}</span>
+                  {podcastResearchFinished && (
+                    <div className="flex items-center text-sm text-green-600 font-normal">
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Research Complete
+                    </div>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Review your generated script before converting to audio
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[400px] overflow-y-auto bg-muted/20 p-4 rounded-md">
+                  <pre className="whitespace-pre-wrap">{podcastScript}</pre>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    navigator.clipboard.writeText(podcastScript);
+                    toast({
+                      title: "Copied!",
+                      description: "Script copied to clipboard",
+                    });
+                  }}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy to Clipboard
+                </Button>
+                <Button 
+                  onClick={() => ttsConversionMutation.mutate()}
+                  disabled={ttsConversionMutation.isPending}
+                >
+                  {ttsConversionMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Converting to Audio...
+                    </>
+                  ) : (
+                    <>
+                      <FileAudio className="mr-2 h-4 w-4" />
+                      Convert to Audio
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }

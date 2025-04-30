@@ -953,6 +953,219 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
+  
+  // Endpoint for podcast script research and generation
+  app.post("/api/podcast/research", async (req, res) => {
+    try {
+      const data = podcastScriptSchema.parse(req.body);
+      log(`Starting podcast research for topic: "${data.topic}"`);
+      
+      // First, perform deep research on the topic using Perplexity Sonar Pro
+      if (!data.searchResults) {
+        try {
+          // Check if Perplexity API key is available
+          if (!process.env.PERPLEXITY_API_KEY) {
+            log("PERPLEXITY_API_KEY environment variable is missing");
+            throw new Error("PERPLEXITY_API_KEY is required for podcast research");
+          }
+
+          const apiKey = process.env.PERPLEXITY_API_KEY;
+          
+          // Create research query based on topic and target duration
+          const researchQuery = `Comprehensive research on: ${data.topic}. Include latest facts, trends, history, expert opinions, statistics, and impact.`;
+          
+          // Create request body for Perplexity API
+          const requestBody = {
+            model: "sonar-pro", // Using the upgraded model
+            messages: [
+              {
+                role: "system",
+                content: "You are a comprehensive research assistant. Provide detailed, thorough, factual information from reliable sources. Include relevant data, expert opinions, statistics, and historical context. Focus on accuracy and depth of information."
+              },
+              {
+                role: "user",
+                content: researchQuery
+              }
+            ],
+            max_tokens: 4000,
+            temperature: 0.2,
+            top_p: 0.9,
+            return_images: false,
+            return_related_questions: true,
+            search_recency_filter: "month",
+            top_k: 0,
+            stream: false,
+            presence_penalty: 0,
+            frequency_penalty: 1,
+            web_search_options: { 
+              search_context_size: "high",
+              search_depth: "deep"
+            }
+          };
+        
+          log('Sending research request to Perplexity API with sonar-pro model...');
+          const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+            method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+          });
+          
+          // Check for API errors
+          if (!perplexityResponse.ok) {
+            const errorText = await perplexityResponse.text();
+            log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
+            throw new Error(`Failed to get research results: ${perplexityResponse.status}`);
+          }
+          
+          // Parse API response
+          const researchData = await perplexityResponse.json();
+          
+          // Extract content
+          let searchResults = "";
+          let citations: string[] = [];
+          
+          if (researchData.choices && researchData.choices.length > 0 && researchData.choices[0].message) {
+            searchResults = researchData.choices[0].message.content || "";
+            log(`Research data received (${searchResults.length} chars)`);
+          } else {
+            throw new Error("Unexpected Perplexity API response format");
+          }
+          
+          // Extract citations
+          if (researchData.citations && Array.isArray(researchData.citations)) {
+            citations = researchData.citations;
+            log(`Found ${citations.length} citations`);
+            
+            // Add citations to research results
+            searchResults += "\n\nSources:\n" + citations.join("\n");
+          }
+          
+          // Now proceed to script generation with the research results
+          return await generatePodcastScript(data, searchResults, res);
+          
+        } catch (error: any) {
+          log(`Research error: ${error?.message || "Unknown error"}`);
+          res.status(500).json({
+            error: "Research failed",
+            message: error?.message || "Failed to complete podcast research",
+          });
+        }
+      } else {
+        // If search results were provided, proceed directly to script generation
+        return await generatePodcastScript(data, data.searchResults, res);
+      }
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ message: error.errors[0].message });
+      } else {
+        log(`Error in podcast research: ${error.message || "Unknown error"}`);
+        res.status(500).json({ message: "Failed to process podcast research request" });
+      }
+    }
+  });
+  
+  // Helper function to generate podcast script using GPT-4o or Claude 3.7
+  async function generatePodcastScript(
+    data: z.infer<typeof podcastScriptSchema>, 
+    searchResults: string, 
+    res: Response
+  ) {
+    try {
+      log(`Generating ${data.model === "claude" ? "Claude" : "GPT"} podcast script for duration: ${data.targetDuration} minutes`);
+      
+      // Generate system prompt based on the target duration and part information
+      let systemPrompt = `You are a professional podcast script writer. Create a factual, engaging podcast script based on the research provided. 
+The script should:
+- Have a natural conversational tone suitable for audio listening
+- Include an introduction and conclusion
+- Maintain accuracy based strictly on the provided research
+- Include interesting facts, statistics, and context where relevant
+- Be structured for a ${data.targetDuration}-minute podcast (approx. ${data.targetDuration * 150} words)
+- Format the script with clear sections, pauses, and emphasis
+- Avoid any fictional information or speculation not in the research
+- Include speaker cues like [PAUSE], [MUSIC], etc. where appropriate`;
+
+      // Add part-specific instructions for multi-part scripts
+      if (data.part && data.totalParts && data.totalParts > 1) {
+        if (data.part === 1) {
+          systemPrompt += `\nThis is part 1 of ${data.totalParts}. End with a smooth transition to the next part.`;
+        } else if (data.part === data.totalParts) {
+          systemPrompt += `\nThis is the final part (${data.part} of ${data.totalParts}). Start by smoothly continuing from the previous part and include a proper conclusion.`;
+        } else {
+          systemPrompt += `\nThis is part ${data.part} of ${data.totalParts}. Start by smoothly continuing from the previous part and end with a transition to the next part.`;
+        }
+      }
+      
+      // Construct user message with the research and any previous part content for continuity
+      let userContent = `Topic: ${data.topic}\n\nResearch:\n${searchResults}`;
+      
+      if (data.previousPartContent && data.part && data.part > 1) {
+        userContent += `\n\nEnd of previous part (for continuity):\n${data.previousPartContent.slice(-500)}`;
+      }
+      
+      let scriptText = "";
+      
+      // Generate script with Claude 3.7 Sonnet
+      if (data.model === "claude") {
+        // Create Claude API request
+        const response = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219", // the newest Anthropic model
+          max_tokens: 4000,
+          temperature: 0.7,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userContent }]
+        });
+
+        // Extract text content
+        scriptText = response.content[0].type === 'text' 
+          ? response.content[0].text 
+          : "Sorry, I couldn't process that request properly.";
+      } 
+      // Generate script with GPT-4o
+      else {
+        // Create OpenAI API request
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o", // the newest OpenAI model
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent }
+          ],
+          max_tokens: 4000,
+          temperature: 0.7
+        });
+
+        scriptText = response.choices[0].message.content || "";
+      }
+      
+      // Check if we have a valid script
+      if (!scriptText || scriptText.trim() === "") {
+        throw new Error("Failed to generate podcast script");
+      }
+      
+      // Return the generated script
+      res.json({
+        topic: data.topic,
+        script: scriptText,
+        model: data.model,
+        targetDuration: data.targetDuration,
+        part: data.part || 1,
+        totalParts: data.totalParts || 1,
+        approximateWords: scriptText.split(/\s+/).length,
+        estimatedDuration: Math.round(scriptText.split(/\s+/).length / 150) // ~150 words per minute
+      });
+      
+    } catch (error: any) {
+      log(`Script generation error: ${error?.message || "Unknown error"}`);
+      res.status(500).json({
+        error: "Script generation failed",
+        message: error?.message || "Failed to generate podcast script",
+      });
+    }
+  }
 
   const httpServer = createServer(app);
   return httpServer;

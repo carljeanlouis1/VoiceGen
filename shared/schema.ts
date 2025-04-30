@@ -45,5 +45,17 @@ export const textToSpeechSchema = z.object({
   generateArtwork: z.boolean().default(false)
 });
 
+// Podcast script generation schema
+export const podcastScriptSchema = z.object({
+  topic: z.string().min(1, "Topic is required"),
+  model: z.enum(["gpt", "claude"]),
+  targetDuration: z.number().min(1).max(60),
+  voice: z.enum(AVAILABLE_VOICES),
+  part: z.number().optional(),
+  totalParts: z.number().optional(),
+  previousPartContent: z.string().optional(),
+  searchResults: z.string().optional(),
+});
+
 // Maximum characters per chunk for OpenAI's TTS
 export const MAX_CHUNK_SIZE = 4000;
