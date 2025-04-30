@@ -96,6 +96,10 @@ export default function CreatePage() {
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [generatedAudioTitle, setGeneratedAudioTitle] = useState<string>("");
   const [playingVoiceSample, setPlayingVoiceSample] = useState<string | null>(null);
+  const [combinedScript, setCombinedScript] = useState<string>("");
+  const [isAutomatedGeneration, setIsAutomatedGeneration] = useState(false);
+  const [generatedParts, setGeneratedParts] = useState<{[key: number]: string}>({});
+  const [processingPart, setProcessingPart] = useState<number | null>(null);
   
   // Function to play a voice sample
   const playVoiceSample = (voice: string) => {
@@ -231,10 +235,17 @@ export default function CreatePage() {
   // Text-to-speech conversion for the podcast script
   const ttsConversionMutation = useMutation({
     mutationFn: async () => {
+      // Determine if this is a combined multi-part script
+      const isMultiPartCombined = podcastMultipart && combinedScript && combinedScript === podcastScript;
+      
+      const title = isMultiPartCombined
+        ? `${podcastTopic} - Complete (${podcastParts} Parts)`
+        : `${podcastTopic} - Part ${currentPodcastPart}`;
+      
       return apiRequest("/api/text-to-speech", {
         method: "POST",
         data: {
-          title: `${podcastTopic} - Part ${currentPodcastPart}`,
+          title: title,
           text: podcastScript,
           voice: podcastVoice,
           generateArtwork: true
@@ -245,9 +256,15 @@ export default function CreatePage() {
       // Save the last part's content for continuity in the next part
       setPreviousPartContent(podcastScript);
       
+      // Determine if this is a combined multi-part script
+      const isMultiPartCombined = podcastMultipart && combinedScript && combinedScript === podcastScript;
+      
       // Set the audio URL for playback on the page
       if (data && data.id) {
-        const audioTitle = `${podcastTopic} - Part ${currentPodcastPart}`;
+        const audioTitle = isMultiPartCombined
+          ? `${podcastTopic} - Complete (${podcastParts} Parts)`
+          : `${podcastTopic} - Part ${currentPodcastPart}`;
+          
         setGeneratedAudioTitle(audioTitle);
         setGeneratedAudioUrl(`/api/audio/${data.audioFilename}`);
         
@@ -300,6 +317,12 @@ export default function CreatePage() {
       // Store the current script content for continuity
       setPreviousPartContent(podcastScript);
       
+      // Add current part to generatedParts object
+      setGeneratedParts(prev => ({
+        ...prev,
+        [currentPodcastPart]: podcastScript
+      }));
+      
       // Clear current script and increment part number
       setPodcastScript("");
       setCurrentPodcastPart(prev => prev + 1);
@@ -308,6 +331,99 @@ export default function CreatePage() {
       podcastResearchMutation.mutate();
     }
   };
+  
+  // Start automated multi-part podcast generation
+  const startAutomatedPodcastGeneration = async () => {
+    // Reset states
+    resetPodcastWorkflow();
+    setIsAutomatedGeneration(true);
+    setGeneratedParts({});
+    setCombinedScript("");
+    
+    // Generate the first part
+    setCurrentPodcastPart(1);
+    setProcessingPart(1);
+    
+    // Start the generation process
+    try {
+      await podcastResearchMutation.mutateAsync();
+    } catch (error) {
+      console.error("Error starting automated generation:", error);
+      setIsAutomatedGeneration(false);
+      toast({
+        title: "Error",
+        description: "Failed to start automated podcast generation",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Effect to handle automatic generation of parts
+  useEffect(() => {
+    // If automated generation is in progress and we have a script for the current part
+    if (isAutomatedGeneration && podcastScript && currentPodcastPart <= podcastParts) {
+      const processPart = async () => {
+        // Update the generated parts with the current script
+        const updatedParts = {
+          ...generatedParts,
+          [currentPodcastPart]: podcastScript
+        };
+        setGeneratedParts(updatedParts);
+        
+        // If this is the last part, combine all scripts
+        if (currentPodcastPart === podcastParts) {
+          // Combine all parts
+          let fullScript = "";
+          for (let i = 1; i <= podcastParts; i++) {
+            if (updatedParts[i]) {
+              if (fullScript) fullScript += "\n\n--- PART " + i + " ---\n\n";
+              else fullScript += "--- PART " + i + " ---\n\n";
+              fullScript += updatedParts[i];
+            }
+          }
+          
+          setCombinedScript(fullScript);
+          setPodcastScript(fullScript);
+          setIsAutomatedGeneration(false);
+          setProcessingPart(null);
+          
+          toast({
+            title: "Complete Podcast Generated!",
+            description: `All ${podcastParts} parts have been generated and combined.`
+          });
+        } 
+        // Otherwise, proceed to the next part
+        else {
+          // Store the script for continuity
+          setPreviousPartContent(podcastScript);
+          
+          // Move to next part
+          const nextPart = currentPodcastPart + 1;
+          setCurrentPodcastPart(nextPart);
+          setProcessingPart(nextPart);
+          setPodcastScript("");
+          
+          // Generate the next part
+          try {
+            await podcastResearchMutation.mutateAsync();
+          } catch (error) {
+            console.error(`Error generating part ${nextPart}:`, error);
+            setIsAutomatedGeneration(false);
+            setProcessingPart(null);
+            toast({
+              title: "Generation Interrupted",
+              description: `Error while generating part ${nextPart}. Process stopped.`,
+              variant: "destructive"
+            });
+          }
+        }
+      };
+      
+      // Process after a short delay to ensure state updates
+      const timer = setTimeout(processPart, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAutomatedGeneration, podcastScript, currentPodcastPart, podcastParts, generatedParts]);
   
   // Reset the podcast creation workflow
   const resetPodcastWorkflow = () => {
@@ -741,24 +857,59 @@ export default function CreatePage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button
-                className="w-full"
-                onClick={() => podcastResearchMutation.mutate()}
-                disabled={podcastTopic.trim() === "" || podcastResearchMutation.isPending}
-              >
-                {podcastResearchMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Researching & Writing...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    Research and Generate Script
-                  </>
+            <CardFooter className="flex flex-col space-y-3">
+              <div className="w-full flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={() => podcastResearchMutation.mutate()}
+                  disabled={podcastTopic.trim() === "" || podcastResearchMutation.isPending || isAutomatedGeneration}
+                >
+                  {podcastResearchMutation.isPending && !isAutomatedGeneration ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Researching & Writing...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Generate Single Part
+                    </>
+                  )}
+                </Button>
+                
+                {podcastMultipart && (
+                  <Button
+                    className="flex-1"
+                    onClick={startAutomatedPodcastGeneration}
+                    disabled={podcastTopic.trim() === "" || isAutomatedGeneration || podcastResearchMutation.isPending}
+                    variant="secondary"
+                  >
+                    {isAutomatedGeneration ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Part {processingPart} of {podcastParts}...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Auto-Generate All Parts
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
+              </div>
+              
+              {isAutomatedGeneration && (
+                <div className="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded text-center text-sm">
+                  <div className="mb-1 font-medium">Generating podcast in {podcastParts} parts</div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-primary h-2.5 rounded-full transition-all duration-500" 
+                      style={{ width: `${(((processingPart || 1) - 1) / podcastParts) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
             </CardFooter>
           </Card>
           
@@ -769,9 +920,15 @@ export default function CreatePage() {
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center">
                     <span>Podcast Script</span>
-                    <div className="ml-2 px-2 py-1 bg-primary/10 rounded-md text-sm">
-                      Part {currentPodcastPart} of {podcastMultipart ? podcastParts : 1}
-                    </div>
+                    {podcastMultipart && combinedScript && combinedScript === podcastScript ? (
+                      <div className="ml-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md text-sm font-medium">
+                        Complete Script (All {podcastParts} Parts)
+                      </div>
+                    ) : (
+                      <div className="ml-2 px-2 py-1 bg-primary/10 rounded-md text-sm">
+                        Part {currentPodcastPart} of {podcastMultipart ? podcastParts : 1}
+                      </div>
+                    )}
                   </div>
                   {podcastResearchFinished && (
                     <div className="flex items-center text-sm text-green-600 font-normal">
@@ -780,9 +937,11 @@ export default function CreatePage() {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  {podcastMultipart 
-                    ? `This script will be approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio in a ${podcastDuration * podcastParts}-minute total podcast`
-                    : `This script will create approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio`
+                  {podcastMultipart && combinedScript && combinedScript === podcastScript 
+                    ? `Complete podcast script - approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio`
+                    : podcastMultipart 
+                      ? `This script will be approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio in a ${podcastDuration * podcastParts}-minute total podcast`
+                      : `This script will create approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio`
                   }
                 </CardDescription>
               </CardHeader>
@@ -804,24 +963,62 @@ export default function CreatePage() {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-2 justify-between">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(podcastScript);
-                    toast({
-                      title: "Copied!",
-                      description: "Script copied to clipboard",
-                    });
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy to Clipboard
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(podcastScript);
+                      toast({
+                        title: "Copied!",
+                        description: "Script copied to clipboard",
+                      });
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy to Clipboard
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      // Create text file download
+                      const blob = new Blob([podcastScript], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      
+                      // Set the filename
+                      const isMultiPartCombined = podcastMultipart && combinedScript && combinedScript === podcastScript;
+                      const filename = isMultiPartCombined
+                        ? `${podcastTopic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_complete_script.txt`
+                        : `${podcastTopic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_part_${currentPodcastPart}.txt`;
+                      
+                      a.href = url;
+                      a.download = filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      
+                      // Clean up
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }, 0);
+                      
+                      toast({
+                        title: "Downloaded!",
+                        description: "Script downloaded as text file",
+                      });
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Script
+                  </Button>
+                </div>
                 
                 <div className="flex gap-2">
                   {/* Only show Generate Next Part if we're in a multi-part podcast and have more parts to generate */}
-                  {podcastMultipart && currentPodcastPart < podcastParts && (
+                  {podcastMultipart && currentPodcastPart < podcastParts && !combinedScript && (
                     <Button 
                       onClick={generateNextPart}
                       disabled={podcastResearchMutation.isPending}
