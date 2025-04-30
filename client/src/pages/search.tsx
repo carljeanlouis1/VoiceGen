@@ -59,7 +59,7 @@ export default function SearchPage() {
               </CardDescription>
             </div>
             <Badge variant="outline" className="bg-primary/10 text-primary font-medium">
-              Perplexity Llama 3.1 Sonar Pro
+              Perplexity Sonar Pro
             </Badge>
           </div>
         </CardHeader>

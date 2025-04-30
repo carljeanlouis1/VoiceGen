@@ -1,0 +1,63 @@
+app.post("/api/search", async (req, res) => {
+  try {
+    const schema = z.object({
+      query: z.string().min(1, "Query cannot be empty")
+    });
+
+    const { query } = schema.parse(req.body);
+    
+    // Log the query for debugging
+    log(`Received search query: "${query}"`);
+    
+    try {
+      // Check if Perplexity API key is available
+      if (!process.env.PERPLEXITY_API_KEY) {
+        log("PERPLEXITY_API_KEY environment variable is missing");
+        throw new Error("PERPLEXITY_API_KEY is required for web search");
+      }
+
+      // Log API key prefix (first 5 chars) for debugging
+      const apiKey = process.env.PERPLEXITY_API_KEY;
+      log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
+    
+      // Create request body with upgraded model
+      const requestBody = {
+        model: "sonar-pro", // Upgraded from llama-3.1-sonar-small-128k-online to sonar-pro
+        messages: [
+          {
+            role: "system",
+            content: "You are a comprehensive web search assistant. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity."
+          },
+          {
+            role: "user",
+            content: query
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2,
+        top_p: 0.9,
+        return_images: false,
+        return_related_questions: true,
+        search_recency_filter: "month",
+        top_k: 0,
+        stream: false,
+        presence_penalty: 0,
+        frequency_penalty: 1,
+        web_search_options: { 
+          search_context_size: "high",
+          search_depth: "deep" // Add deeper search for more comprehensive results
+        }
+      };
+    
+      log('Attempting request to Perplexity API with sonar-pro model and web search...');
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Rest of your code remains the same...

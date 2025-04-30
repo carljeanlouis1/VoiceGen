@@ -813,35 +813,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
         // Create request body exactly as in the documentation, with corrected parameters
         const requestBody = {
-          model: "llama-3.1-sonar-pro-8192-online", // Upgraded to Pro model for more powerful search
+          model: "sonar-pro", // Upgraded to Pro model for more powerful search
           messages: [
             {
               role: "system",
-              content: "You are a comprehensive web search assistant powered by Llama 3.1 Sonar Pro. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity. When appropriate, include data, statistics, and direct quotes from authoritative sources."
+              content: "You are a comprehensive web search assistant. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity."
             },
             {
               role: "user",
               content: query
             }
           ],
-          max_tokens: 4000, // Increased to allow for longer, more detailed responses
-          temperature: 0.15, // Slightly reduced for more precise responses
-          top_p: 0.95, // Slightly increased for better coverage
-          // Remove search_domain_filter since it's causing validation errors
+          max_tokens: 4000,
+          temperature: 0.2,
+          top_p: 0.9,
           return_images: false,
           return_related_questions: true,
-          search_recency_filter: "month", // Keep standard recency filter
+          search_recency_filter: "month",
           top_k: 0,
           stream: false,
           presence_penalty: 0,
           frequency_penalty: 1,
           web_search_options: { 
             search_context_size: "high",
-            include_answer_sources: true // Pro model supports this feature
+            search_depth: "deep" // Add deeper search for more comprehensive results
           }
         };
       
-        log('Attempting request to Perplexity API with Llama 3.1 Sonar Pro model and web search...');
+        log('Attempting request to Perplexity API with sonar-pro model and web search...');
         const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: {
