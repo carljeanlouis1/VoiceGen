@@ -1,0 +1,127 @@
+chunk-RPCDYKBN.js?v=b3f238c0:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+create.tsx:110 Error playing sample: NotSupportedError: Failed to load because no supported source was found.
+(anonymous) @ create.tsx:110
+Promise.catch
+playVoiceSample @ create.tsx:109
+onClick @ create.tsx:846
+callCallback2 @ chunk-RPCDYKBN.js?v=b3f238c0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=b3f238c0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=b3f238c0:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=b3f238c0:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=b3f238c0:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=b3f238c0:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=b3f238c0:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=b3f238c0:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=b3f238c0:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=b3f238c0:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=b3f238c0:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=b3f238c0:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=b3f238c0:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=b3f238c0:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=b3f238c0:5449
+create.tsx:1014 Uncaught ReferenceError: Download is not defined
+    at CreatePage (create.tsx:1014:22)
+    at renderWithHooks (chunk-RPCDYKBN.js?v=b3f238c0:11548:26)
+    at updateFunctionComponent (chunk-RPCDYKBN.js?v=b3f238c0:14582:28)
+    at beginWork (chunk-RPCDYKBN.js?v=b3f238c0:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-RPCDYKBN.js?v=b3f238c0:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-RPCDYKBN.js?v=b3f238c0:3699:24)
+    at invokeGuardedCallback (chunk-RPCDYKBN.js?v=b3f238c0:3733:39)
+    at beginWork$1 (chunk-RPCDYKBN.js?v=b3f238c0:19765:15)
+    at performUnitOfWork (chunk-RPCDYKBN.js?v=b3f238c0:19198:20)
+    at workLoopSync (chunk-RPCDYKBN.js?v=b3f238c0:19137:13)
+CreatePage @ create.tsx:1014
+renderWithHooks @ chunk-RPCDYKBN.js?v=b3f238c0:11548
+updateFunctionComponent @ chunk-RPCDYKBN.js?v=b3f238c0:14582
+beginWork @ chunk-RPCDYKBN.js?v=b3f238c0:15924
+callCallback2 @ chunk-RPCDYKBN.js?v=b3f238c0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=b3f238c0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=b3f238c0:3733
+beginWork$1 @ chunk-RPCDYKBN.js?v=b3f238c0:19765
+performUnitOfWork @ chunk-RPCDYKBN.js?v=b3f238c0:19198
+workLoopSync @ chunk-RPCDYKBN.js?v=b3f238c0:19137
+renderRootSync @ chunk-RPCDYKBN.js?v=b3f238c0:19116
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=b3f238c0:18678
+workLoop @ chunk-RPCDYKBN.js?v=b3f238c0:197
+flushWork @ chunk-RPCDYKBN.js?v=b3f238c0:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=b3f238c0:384
+create.tsx:1014 Uncaught ReferenceError: Download is not defined
+    at CreatePage (create.tsx:1014:22)
+    at renderWithHooks (chunk-RPCDYKBN.js?v=b3f238c0:11548:26)
+    at updateFunctionComponent (chunk-RPCDYKBN.js?v=b3f238c0:14582:28)
+    at beginWork (chunk-RPCDYKBN.js?v=b3f238c0:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-RPCDYKBN.js?v=b3f238c0:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-RPCDYKBN.js?v=b3f238c0:3699:24)
+    at invokeGuardedCallback (chunk-RPCDYKBN.js?v=b3f238c0:3733:39)
+    at beginWork$1 (chunk-RPCDYKBN.js?v=b3f238c0:19765:15)
+    at performUnitOfWork (chunk-RPCDYKBN.js?v=b3f238c0:19198:20)
+    at workLoopSync (chunk-RPCDYKBN.js?v=b3f238c0:19137:13)
+CreatePage @ create.tsx:1014
+renderWithHooks @ chunk-RPCDYKBN.js?v=b3f238c0:11548
+updateFunctionComponent @ chunk-RPCDYKBN.js?v=b3f238c0:14582
+beginWork @ chunk-RPCDYKBN.js?v=b3f238c0:15924
+callCallback2 @ chunk-RPCDYKBN.js?v=b3f238c0:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=b3f238c0:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=b3f238c0:3733
+beginWork$1 @ chunk-RPCDYKBN.js?v=b3f238c0:19765
+performUnitOfWork @ chunk-RPCDYKBN.js?v=b3f238c0:19198
+workLoopSync @ chunk-RPCDYKBN.js?v=b3f238c0:19137
+renderRootSync @ chunk-RPCDYKBN.js?v=b3f238c0:19116
+recoverFromConcurrentError @ chunk-RPCDYKBN.js?v=b3f238c0:18736
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=b3f238c0:18684
+workLoop @ chunk-RPCDYKBN.js?v=b3f238c0:197
+flushWork @ chunk-RPCDYKBN.js?v=b3f238c0:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=b3f238c0:384
+chunk-RPCDYKBN.js?v=b3f238c0:14032 The above error occurred in the <CreatePage> component:
+
+    at CreatePage (https://4d4f020a-b8f7-494c-8119-8b6e2d5ba07e-00-3hsh7k110g8z9.riker.replit.dev/src/pages/create.tsx:84:21)
+    at Route (https://4d4f020a-b8f7-494c-8119-8b6e2d5ba07e-00-3hsh7k110g8z9.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b3f238c0:323:16)
+    at Switch (https://4d4f020a-b8f7-494c-8119-8b6e2d5ba07e-00-3hsh7k110g8z9.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b3f238c0:379:17)
+    at Router
+    at div
+    at AppContent
+    at ThemeProvider (https://4d4f020a-b8f7-494c-8119-8b6e2d5ba07e-00-3hsh7k110g8z9.riker.replit.dev/src/lib/theme-provider.tsx:20:33)
+    at QueryClientProvider (https://4d4f020a-b8f7-494c-8119-8b6e2d5ba07e-00-3hsh7k110g8z9.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=b3f238c0:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-RPCDYKBN.js?v=b3f238c0:14032
+update.callback @ chunk-RPCDYKBN.js?v=b3f238c0:14052
+callCallback @ chunk-RPCDYKBN.js?v=b3f238c0:11248
+commitUpdateQueue @ chunk-RPCDYKBN.js?v=b3f238c0:11265
+commitLayoutEffectOnFiber @ chunk-RPCDYKBN.js?v=b3f238c0:17093
+commitLayoutMountEffects_complete @ chunk-RPCDYKBN.js?v=b3f238c0:17980
+commitLayoutEffects_begin @ chunk-RPCDYKBN.js?v=b3f238c0:17969
+commitLayoutEffects @ chunk-RPCDYKBN.js?v=b3f238c0:17920
+commitRootImpl @ chunk-RPCDYKBN.js?v=b3f238c0:19353
+commitRoot @ chunk-RPCDYKBN.js?v=b3f238c0:19277
+finishConcurrentRender @ chunk-RPCDYKBN.js?v=b3f238c0:18760
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=b3f238c0:18718
+workLoop @ chunk-RPCDYKBN.js?v=b3f238c0:197
+flushWork @ chunk-RPCDYKBN.js?v=b3f238c0:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=b3f238c0:384
+chunk-RPCDYKBN.js?v=b3f238c0:19413 Uncaught ReferenceError: Download is not defined
+    at CreatePage (create.tsx:1014:22)
+    at renderWithHooks (chunk-RPCDYKBN.js?v=b3f238c0:11548:26)
+    at updateFunctionComponent (chunk-RPCDYKBN.js?v=b3f238c0:14582:28)
+    at beginWork (chunk-RPCDYKBN.js?v=b3f238c0:15924:22)
+    at beginWork$1 (chunk-RPCDYKBN.js?v=b3f238c0:19753:22)
+    at performUnitOfWork (chunk-RPCDYKBN.js?v=b3f238c0:19198:20)
+    at workLoopSync (chunk-RPCDYKBN.js?v=b3f238c0:19137:13)
+    at renderRootSync (chunk-RPCDYKBN.js?v=b3f238c0:19116:15)
+    at recoverFromConcurrentError (chunk-RPCDYKBN.js?v=b3f238c0:18736:28)
+    at performConcurrentWorkOnRoot (chunk-RPCDYKBN.js?v=b3f238c0:18684:30)
+CreatePage @ create.tsx:1014
+renderWithHooks @ chunk-RPCDYKBN.js?v=b3f238c0:11548
+updateFunctionComponent @ chunk-RPCDYKBN.js?v=b3f238c0:14582
+beginWork @ chunk-RPCDYKBN.js?v=b3f238c0:15924
+beginWork$1 @ chunk-RPCDYKBN.js?v=b3f238c0:19753
+performUnitOfWork @ chunk-RPCDYKBN.js?v=b3f238c0:19198
+workLoopSync @ chunk-RPCDYKBN.js?v=b3f238c0:19137
+renderRootSync @ chunk-RPCDYKBN.js?v=b3f238c0:19116
+recoverFromConcurrentError @ chunk-RPCDYKBN.js?v=b3f238c0:18736
+performConcurrentWorkOnRoot @ chunk-RPCDYKBN.js?v=b3f238c0:18684
+workLoop @ chunk-RPCDYKBN.js?v=b3f238c0:197
+flushWork @ chunk-RPCDYKBN.js?v=b3f238c0:176
+performWorkUntilDeadline @ chunk-RPCDYKBN.js?v=b3f238c0:384

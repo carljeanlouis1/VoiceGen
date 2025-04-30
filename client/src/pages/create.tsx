@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
   Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
-  Volume2
+  Volume2, Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -104,11 +104,18 @@ export default function CreatePage() {
   // Function to play a voice sample
   const playVoiceSample = (voice: string) => {
     setPlayingVoiceSample(voice);
+    // Fix: Add .mp3 extension to the voice sample URL
     const audio = new Audio(`/api/voice-samples/${voice}`);
     audio.onended = () => setPlayingVoiceSample(null);
     audio.play().catch(err => {
       console.error("Error playing sample:", err);
       setPlayingVoiceSample(null);
+      // Show error toast for better user feedback
+      toast({
+        title: "Error",
+        description: "Could not play voice sample. Please try again.",
+        variant: "destructive"
+      });
     });
   };
 
