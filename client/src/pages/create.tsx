@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -10,13 +10,15 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
-  Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2
+  Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
+  Volume2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AVAILABLE_VOICES } from "@shared/schema";
+import { AudioPlayer } from "@/components/audio-player";
 
 // Predefined system prompts for different content types
 const CONTENT_TEMPLATES = {
@@ -91,6 +93,20 @@ export default function CreatePage() {
   const [podcastResearchFinished, setPodcastResearchFinished] = useState(false);
   const [currentPodcastPart, setCurrentPodcastPart] = useState(1);
   const [previousPartContent, setPreviousPartContent] = useState("");
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [generatedAudioTitle, setGeneratedAudioTitle] = useState<string>("");
+  const [playingVoiceSample, setPlayingVoiceSample] = useState<string | null>(null);
+  
+  // Function to play a voice sample
+  const playVoiceSample = (voice: string) => {
+    setPlayingVoiceSample(voice);
+    const audio = new Audio(`/api/voice-samples/${voice}`);
+    audio.onended = () => setPlayingVoiceSample(null);
+    audio.play().catch(err => {
+      console.error("Error playing sample:", err);
+      setPlayingVoiceSample(null);
+    });
+  };
 
   // Handle image upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +245,18 @@ export default function CreatePage() {
       // Save the last part's content for continuity in the next part
       setPreviousPartContent(podcastScript);
       
+      // Set the audio URL for playback on the page
+      if (data && data.id) {
+        const audioTitle = `${podcastTopic} - Part ${currentPodcastPart}`;
+        setGeneratedAudioTitle(audioTitle);
+        setGeneratedAudioUrl(`/api/audio/${data.audioFilename}`);
+        
+        toast({
+          title: "Audio generated successfully",
+          description: "You can now listen to the audio directly on this page"
+        });
+      }
+      
       // If we have more parts to generate, increment part and clear the script
       if (podcastMultipart && currentPodcastPart < podcastParts) {
         setCurrentPodcastPart(prev => prev + 1);
@@ -238,16 +266,23 @@ export default function CreatePage() {
           title: "Podcast audio created",
           description: `Audio for part ${currentPodcastPart} has been added to your library. Ready to generate part ${currentPodcastPart + 1}.`
         });
-      } else {
+      } else if (!podcastMultipart) {
+        // Single part podcast is complete
         toast({
           title: "Podcast complete!",
-          description: `All ${podcastMultipart ? podcastParts : 1} parts of your podcast have been created and added to your library.`
+          description: "Your podcast has been created and added to your library."
+        });
+      } else {
+        // Final part of multi-part podcast is complete
+        toast({
+          title: "Podcast complete!",
+          description: `All ${podcastParts} parts of your podcast have been created and added to your library.`
         });
         
-        // Complete workflow - optionally reset for a new podcast
+        // Complete workflow - optionally reset for a new podcast after a delay
         setTimeout(() => {
           resetPodcastWorkflow();
-        }, 2000);
+        }, 5000);
       }
     },
     onError: (error: Error) => {
@@ -281,6 +316,8 @@ export default function CreatePage() {
     setPodcastResearchFinished(false);
     setCurrentPodcastPart(1);
     setPreviousPartContent("");
+    setGeneratedAudioUrl(null);
+    setGeneratedAudioTitle("");
   };
 
   return (
@@ -670,19 +707,35 @@ export default function CreatePage() {
                   {AVAILABLE_VOICES.map(voice => (
                     <div 
                       key={voice} 
-                      className={`flex items-center space-x-2 p-2 rounded cursor-pointer ${
-                        podcastVoice === voice ? 'bg-primary/10' : 'hover:bg-muted'
+                      className={`flex items-center justify-between p-3 rounded-lg border relative ${
+                        podcastVoice === voice ? 'border-primary bg-primary/10' : 'border-muted hover:bg-muted/50'
                       }`}
-                      onClick={() => setPodcastVoice(voice)}
                     >
-                      <div className={`w-4 h-4 rounded-full border ${
-                        podcastVoice === voice ? 'border-primary bg-primary' : 'border-muted-foreground'
-                      }`}>
-                        {podcastVoice === voice && (
-                          <div className="w-2 h-2 rounded-full bg-white m-auto" />
-                        )}
+                      <div className="flex items-center space-x-2" onClick={() => setPodcastVoice(voice)}>
+                        <div className={`w-4 h-4 rounded-full border ${
+                          podcastVoice === voice ? 'border-primary bg-primary' : 'border-muted-foreground'
+                        }`}>
+                          {podcastVoice === voice && (
+                            <div className="w-2 h-2 rounded-full bg-white m-auto" />
+                          )}
+                        </div>
+                        <Label className="capitalize cursor-pointer">{voice}</Label>
                       </div>
-                      <Label className="capitalize cursor-pointer">{voice}</Label>
+                      
+                      {/* Play voice sample button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => playVoiceSample(voice)}
+                        title={`Play ${voice} sample`}
+                      >
+                        {playingVoiceSample === voice ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Volume2 className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
                   ))}
                 </div>
