@@ -339,6 +339,17 @@ const geminiContentSchema = z.object({
   images: z.array(z.string()).optional(), // Base64-encoded images
 });
 
+// Schema for podcast script generation request
+const podcastScriptSchema = z.object({
+  topic: z.string().min(1, "Topic is required"),
+  targetDuration: z.number().min(1).max(60).default(5), // Target duration in minutes
+  model: z.enum(["claude", "gpt"]).default("gpt"), // AI model to use for script generation
+  part: z.number().min(1).optional(), // For multi-part scripts
+  totalParts: z.number().min(1).optional(), // Total parts for longer scripts
+  previousPartContent: z.string().optional(), // End of previous part for continuity
+  searchResults: z.string().optional(), // Pre-fetched search results (optional)
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize Gemini client
   log("Initializing Gemini client...");
