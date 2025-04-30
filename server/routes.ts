@@ -547,8 +547,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Content-Length', chunkSize);
-        res.setHeader('Content-Type', 'audio/mp3');
+        res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('X-Audio-Duration', estimatedDuration);
+        // Add Cache-Control header to prevent browser caching issues during seeking
+        res.setHeader('Cache-Control', 'no-cache, no-store');
+        // Allow browser controls to properly seek
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Range');
         
         // Stream the file slice
         const fileStream = fs.createReadStream(filePath, { start, end });
@@ -556,15 +561,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Handle normal requests
         // Set appropriate headers
-        res.setHeader('Content-Type', 'audio/mp3');
+        res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Content-Length', fileSize);
         res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
         res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
         
-        // Decide whether to force download or not based on query param
-        const disposition = req.query.download ? 'attachment' : 'inline';
-        res.setHeader('Content-Disposition', `${disposition}; filename=${filename}`);
+        // Optimize caching based on request type
+        if (req.query.download) {
+          // For downloads, use no-cache to ensure fresh content
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+        } else {
+          // For normal playback, allow some caching but with validation
+          res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+          res.setHeader('Content-Disposition', `inline; filename=${filename}`);
+        }
+        
+        // Add CORS headers for better player compatibility
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Range');
         
         // Stream the file instead of loading it all into memory
         const fileStream = fs.createReadStream(filePath);

@@ -129,14 +129,39 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
   const seek = (time: number) => {
     if (!audioRef.current) return;
     
-    // Ensure the time is within valid bounds
-    const validTime = Math.min(Math.max(time, 0), duration || 0);
-    
-    // Update the audio element's current time
-    audioRef.current.currentTime = validTime;
-    
-    // Update the state to match
-    setCurrentTime(validTime);
+    try {
+      // Ensure the time is within valid bounds
+      const validTime = Math.min(Math.max(time, 0), duration || 0);
+      
+      // Pause briefly to avoid media errors
+      const wasPlaying = !audioRef.current.paused;
+      if (wasPlaying) {
+        audioRef.current.pause();
+      }
+      
+      // Update the audio element's current time
+      audioRef.current.currentTime = validTime;
+      
+      // Update the state to match
+      setCurrentTime(validTime);
+      
+      // Resume playback after a brief delay if it was playing
+      if (wasPlaying) {
+        setTimeout(() => {
+          try {
+            audioRef.current?.play().catch(e => {
+              console.warn("Could not resume playback after seek:", e);
+            });
+          } catch (e) {
+            console.warn("Error resuming playback:", e);
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Error seeking audio:", error);
+      // If seeking fails, don't change the UI state
+      setIsSeeking(false);
+    }
   };
 
   const skipTime = (seconds: number) => {
@@ -172,13 +197,35 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
   };
 
   const handleDownload = () => {
-    // Create a temporary anchor element
-    const downloadLink = document.createElement('a');
-    downloadLink.href = src;
-    downloadLink.download = `${title.replace(/\s+/g, '_')}.mp3`; // Replace spaces with underscores for filename
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+    try {
+      // Create a temporary anchor element
+      const downloadLink = document.createElement('a');
+      downloadLink.href = src;
+      
+      // Use original title for the filename, sanitize it for valid filename
+      const sanitizedTitle = title
+        .replace(/[^\w\s.-]/g, '') // Remove special characters except underscores, spaces, periods, and hyphens
+        .replace(/\s+/g, '_');     // Replace spaces with underscores
+      
+      // Add .mp3 extension if not already present
+      const filename = sanitizedTitle.toLowerCase().endsWith('.mp3') 
+        ? sanitizedTitle 
+        : `${sanitizedTitle}.mp3`;
+      
+      // Set download attribute to desired filename
+      downloadLink.download = filename;
+      
+      // Briefly add to DOM, trigger click, and remove
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(downloadLink);
+      }, 100);
+    } catch (error) {
+      console.error("Error downloading audio:", error);
+    }
   };
 
   return (
@@ -206,14 +253,22 @@ export function AudioPlayer({ src, title }: AudioPlayerProps) {
         value={[currentTime]}
         max={duration || 100} // Fallback to 100 if duration is 0
         step={0.1}
-        onValueCommit={([value]) => seek(value)} // Use onValueCommit to only trigger when user releases slider
+        // Only update visual time during drag, apply change on commit
         onValueChange={([value]) => {
-          // Update displayed time during drag without affecting audio
-          setIsSeeking(true);
-          setCurrentTime(value);
+          if (!isLoading && duration > 0) {
+            setIsSeeking(true);
+            setCurrentTime(value);
+          }
         }}
-        onPointerUp={() => {
-          setIsSeeking(false);
+        // Only seek when slider is released to prevent frequent seeks that can crash the player
+        onValueCommit={([value]) => {
+          if (!isLoading && duration > 0) {
+            // Small delay to ensure we don't interrupt other processes
+            setTimeout(() => {
+              seek(value);
+              setIsSeeking(false);
+            }, 50);
+          }
         }}
         disabled={duration <= 0 || isLoading}
         className="my-2"
