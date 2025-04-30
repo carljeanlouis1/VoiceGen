@@ -1,3 +1,5 @@
+I'm building an application using node.js and typescript using perplexity and I think the current model is the sonar small, but I want to increase it to a more powerful search engine model that gives me a higher quality results. this is the current code of my application. give me all the necessary contacts from the perplexity API to upgrade my code and keep everything else the same but with a stronger model with more search results, one of the most strongest ones 
+
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
@@ -813,11 +815,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
         // Create request body exactly as in the documentation, with corrected parameters
         const requestBody = {
-          model: "llama-3.1-sonar-pro-8192-online", // Upgraded to Pro model for more powerful search
+          model: "llama-3.1-sonar-small-128k-online", // Use Llama model for web search
           messages: [
             {
               role: "system",
-              content: "You are a comprehensive web search assistant powered by Llama 3.1 Sonar Pro. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity. When appropriate, include data, statistics, and direct quotes from authoritative sources."
+              content: "You are a comprehensive web search assistant. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity."
             },
             {
               role: "user",
@@ -825,23 +827,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           ],
           max_tokens: 4000, // Increased to allow for longer, more detailed responses
-          temperature: 0.15, // Slightly reduced for more precise responses
-          top_p: 0.95, // Slightly increased for better coverage
+          temperature: 0.2,
+          top_p: 0.9,
           // Remove search_domain_filter since it's causing validation errors
           return_images: false,
           return_related_questions: true,
-          search_recency_filter: "month", // Keep standard recency filter
+          search_recency_filter: "month",
           top_k: 0,
           stream: false,
           presence_penalty: 0,
           frequency_penalty: 1,
-          web_search_options: { 
-            search_context_size: "high",
-            include_answer_sources: true // Pro model supports this feature
-          }
+          web_search_options: { search_context_size: "high" }
         };
       
-        log('Attempting request to Perplexity API with Llama 3.1 Sonar Pro model and web search...');
+        log('Attempting request to Perplexity API with Llama 3.1 Sonar small model and web search...');
         const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
           headers: {
@@ -947,3 +946,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+To upgrade your application to use a more powerful Perplexity search model, you'll need to modify your API integration to use one of Perplexity's stronger models. Based on the search results, Perplexity offers several advanced models that would provide higher quality search results than the current `llama-3.1-sonar-small-128k-online` model you're using.
+
+## Recommended Model Upgrade
+
+The most powerful search models from Perplexity are:
+
+1. **Sonar-Reasoning-Pro-High** - This model achieved the highest ranking in search arena evaluations, tied with Google's Gemini-2.5-Pro-Grounding[5]
+2. **Claude 3.5 Sonnet** - One of the most advanced LLMs available with a strong balance of speed and accuracy[1]
+3. **GPT-4 Omni** - OpenAI's latest model with strong reasoning abilities[1]
+
+Based on the search results, I recommend upgrading to **Sonar-Reasoning-Pro** or **Sonar-Pro** as these models have demonstrated superior performance in search tasks, citing 2-3x more sources than comparable models[5].
+
+## Code Modifications
+
+Here's how to modify your existing code to use a more powerful Perplexity model:
+
+```javascript
+app.post("/api/search", async (req, res) => {
+  try {
+    const schema = z.object({
+      query: z.string().min(1, "Query cannot be empty")
+    });
+
+    const { query } = schema.parse(req.body);
+    
+    // Log the query for debugging
+    log(`Received search query: "${query}"`);
+    
+    try {
+      // Check if Perplexity API key is available
+      if (!process.env.PERPLEXITY_API_KEY) {
+        log("PERPLEXITY_API_KEY environment variable is missing");
+        throw new Error("PERPLEXITY_API_KEY is required for web search");
+      }
+
+      // Log API key prefix (first 5 chars) for debugging
+      const apiKey = process.env.PERPLEXITY_API_KEY;
+      log(`Using Perplexity API key starting with: ${apiKey.substring(0, 5)}...`);
+    
+      // Create request body with upgraded model
+      const requestBody = {
+        model: "sonar-pro", // Upgraded from llama-3.1-sonar-small-128k-online to sonar-pro
+        messages: [
+          {
+            role: "system",
+            content: "You are a comprehensive web search assistant. Provide detailed, thorough answers with accurate and up-to-date information from the web. Include relevant context, explain complex topics clearly, and organize your response in a structured manner. Aim to be comprehensive while maintaining clarity."
+          },
+          {
+            role: "user",
+            content: query
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2,
+        top_p: 0.9,
+        return_images: false,
+        return_related_questions: true,
+        search_recency_filter: "month",
+        top_k: 0,
+        stream: false,
+        presence_penalty: 0,
+        frequency_penalty: 1,
+        web_search_options: { 
+          search_context_size: "high",
+          search_depth: "deep" // Add deeper search for more comprehensive results
+        }
+      };
+    
+      log('Attempting request to Perplexity API with sonar-pro model and web search...');
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Rest of your code remains the same...
+```
+
+## Alternative Model Options
+
+If you want to try different advanced models, here are the options you can use in your code:
+
+```javascript
+// For even more powerful search with reasoning capabilities
+const requestBody = {
+  model: "sonar-reasoning-pro", // Top-ranked model for search quality
+  // other parameters remain the same
+};
+
+// For the most advanced reasoning model (if budget allows)
+const requestBody = {
+  model: "sonar-reasoning-pro-high", // The highest-ranked model in search arena
+  // other parameters remain the same
+};
+
+// For a balanced approach
+const requestBody = {
+  model: "sonar-medium", // Better than small, more economical than pro
+  // other parameters remain the same
+};
+```
+
+## Additional Improvements
+
+To further enhance your search results, consider these additional parameters:
+
+```javascript
+web_search_options: { 
+  search_context_size: "high",
+  search_depth: "deep",
+  include_domains: ["reliable-source1.com", "reliable-source2.org"], // Optional: prioritize specific domains
+  exclude_domains: ["unreliable-source.com"], // Optional: exclude specific domains
+}
+```
+
+## Model Comparison
+
+Based on the search results, here's how the models compare:
+
+| Model | Strengths | Use Case | Citation Depth |
+|-------|-----------|----------|----------------|
+| sonar-reasoning-pro-high | Top-ranked in search arena, highest quality | Critical research | 2-3x more than competitors |
+| sonar-reasoning-pro | Advanced reasoning with citations | Detailed research | High |
+| sonar-pro | Flagship model with comprehensive answers | General research | High |
+| sonar-medium | Balanced performance | Everyday queries | Medium |
+| llama-3.1-sonar-small | Efficient, basic information | Simple queries | Basic |
+
+## Implementation Notes
+
+1. Make sure your Perplexity API key has access to these advanced models (they may require a Pro subscription)[1]
+2. The more advanced models may have higher API costs, so consider your usage patterns
+3. For the best results with the reasoning models, you might want to adjust your system prompt to take advantage of their capabilities
+
+By implementing these changes, your application will leverage Perplexity's most powerful search capabilities, providing higher quality results with more comprehensive citations and deeper research.
+
+Citations:
+[1] What advanced AI models are included in a Perplexity Pro ... https://www.perplexity.ai/help-center/en/articles/10354919-what-advanced-ai-models-are-included-in-a-perplexity-pro-subscription
+[2] Perplexity API Ultimate Guide | Zuplo Blog https://zuplo.com/blog/2025/03/28/perplexity-api
+[3] Perplexity AI Unveils Game-Changing Sonar API for Advanced ... https://opentools.ai/news/perplexity-ai-unveils-game-changing-sonar-api-for-advanced-search-capabilities
+[4] What's the best AI model using Perplexity? : r/perplexity_ai - Reddit https://www.reddit.com/r/perplexity_ai/comments/1en8tyq/whats_the_best_ai_model_using_perplexity/
+[5] Perplexity Sonar Dominates New Search Arena Evaluation https://www.perplexity.ai/hub/blog/perplexity-sonar-dominates-new-search-arena-evolution
+[6] Sonar by Perplexity https://sonar.perplexity.ai
+[7] Discover the Power of Perplexity AI: A Comparison of Generative AI ... https://www.toolify.ai/ai-news/discover-the-power-of-perplexity-ai-a-comparison-of-generative-ai-platforms-1300580
+[8] Pro Search: Upgraded for more advanced problem-solving - Perplexity https://www.perplexity.ai/hub/blog/pro-search-upgraded-for-more-advanced-problem-solving
+[9] Introducing the Sonar Pro API by Perplexity https://www.perplexity.ai/hub/blog/introducing-the-sonar-pro-api
+[10] Perplexity: Models Intelligence, Performance & Price https://artificialanalysis.ai/providers/perplexity
+[11] How to get more CONSISTENT search results with PERPLEXITY's API https://www.youtube.com/watch?v=arAbxVA5j4Y
+[12] SearchGPT: More Than Just a Perplexity Clone? - Community https://community.openai.com/t/searchgpt-more-than-just-a-perplexity-clone/883454
+[13] Understanding Perplexity API Models – A Quick Guide - 28 Pixels Ltd https://28px.uk/understanding-perplexity-api-models-a-quick-guide/
+[14] API Roadmap - Perplexity AI https://docs.perplexity.ai/feature-roadmap
+[15] What's Perplexity AI and Will It Replace Google Search? - Voiceflow https://www.voiceflow.com/blog/perplexity-ai
+[16] Perplexity vs. ChatGPT: Which AI tool is better? - Zapier https://zapier.com/blog/perplexity-vs-chatgpt/
+[17] I made a decision to switch from perplexity api to open ai - Reddit https://www.reddit.com/r/perplexity_ai/comments/1jma950/i_made_a_decision_to_switch_from_perplexity_api/
+[18] Models - Perplexity https://docs.perplexity.ai/guides/model-cards
+[19] What advanced AI models are included in a Perplexity Pro ... https://www.perplexity.ai/hub/technical-faq/what-advanced-ai-models-does-perplexity-pro-unlock
+[20] Can someone explain to me which AI model suitable for what type of ... https://www.reddit.com/r/perplexity_ai/comments/1fhtpp8/can_someone_explain_to_me_which_ai_model_suitable/

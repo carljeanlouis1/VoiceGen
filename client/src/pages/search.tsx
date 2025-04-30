@@ -55,11 +55,11 @@ export default function SearchPage() {
             <div>
               <CardTitle className="text-2xl">AI Web Search</CardTitle>
               <CardDescription>
-                Search the web using Perplexity's powerful AI-powered search
+                Search the web using Perplexity's advanced Pro model for more comprehensive and accurate results
               </CardDescription>
             </div>
-            <Badge variant="outline" className="bg-primary/10 text-primary">
-              Perplexity Llama 3.1
+            <Badge variant="outline" className="bg-primary/10 text-primary font-medium">
+              Perplexity Llama 3.1 Sonar Pro
             </Badge>
           </div>
         </CardHeader>
@@ -103,7 +103,7 @@ export default function SearchPage() {
                 </div>
                 <div>
                   <p className="font-medium">Search Error</p>
-                  <p className="text-sm mt-1">Using Claude Sonnet as a fallback search engine</p>
+                  <p className="text-sm mt-1">Failed to connect to Perplexity Sonar Pro search engine</p>
                 </div>
               </div>
             </div>
