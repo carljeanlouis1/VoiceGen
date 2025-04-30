@@ -498,7 +498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Endpoint to serve audio files from disk
-  app.get("/api/audio/:filename", (req, res) => {
+  app.get("/api/audio/:filename", async (req, res) => {
     const filename = req.params.filename;
     const filePath = path.join(AUDIO_DIR, filename);
     
@@ -512,18 +512,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stats = fs.statSync(filePath);
       const fileSize = stats.size;
       
-      // Estimate audio duration based on file size (rough approximation)
-      const estimatedDuration = Math.ceil(fileSize / 16000); // ~16KB per second at 128kbps
+      // Handle range requests for better seeking support
+      const range = req.headers.range;
       
-      // Set appropriate headers
-      res.setHeader('Content-Type', 'audio/mp3');
-      res.setHeader('Content-Length', fileSize);
-      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-      res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
+      // Try to get the actual duration from the database if available
+      let actualDuration = 0;
+      try {
+        // Extract file ID from filename (assuming format like "audio_123.mp3")
+        const fileIdMatch = filename.match(/audio_(\d+)\.mp3$/);
+        if (fileIdMatch && fileIdMatch[1]) {
+          const fileId = parseInt(fileIdMatch[1], 10);
+          const audioFile = await storage.getAudioFile(fileId);
+          if (audioFile) {
+            actualDuration = audioFile.duration;
+          }
+        }
+      } catch (err) {
+        // If retrieving actual duration fails, fall back to estimation
+        log(`Error retrieving audio duration: ${err}`);
+      }
       
-      // Stream the file instead of loading it all into memory
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
+      // Estimate audio duration based on file size as fallback (rough approximation)
+      const estimatedDuration = actualDuration || Math.ceil(fileSize / 16000); // ~16KB per second at 128kbps
+      
+      if (range) {
+        // Handle range requests for better seeking support
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunkSize = (end - start) + 1;
+        
+        // Set partial content headers
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Length', chunkSize);
+        res.setHeader('Content-Type', 'audio/mp3');
+        res.setHeader('X-Audio-Duration', estimatedDuration);
+        
+        // Stream the file slice
+        const fileStream = fs.createReadStream(filePath, { start, end });
+        fileStream.pipe(res);
+      } else {
+        // Handle normal requests
+        // Set appropriate headers
+        res.setHeader('Content-Type', 'audio/mp3');
+        res.setHeader('Content-Length', fileSize);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+        res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
+        
+        // Decide whether to force download or not based on query param
+        const disposition = req.query.download ? 'attachment' : 'inline';
+        res.setHeader('Content-Disposition', `${disposition}; filename=${filename}`);
+        
+        // Stream the file instead of loading it all into memory
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+      }
     } catch (error: any) {
       log(`Error serving audio file ${filename}: ${error.message}`);
       res.status(500).json({ error: "Failed to serve audio file" });
