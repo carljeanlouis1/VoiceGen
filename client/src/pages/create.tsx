@@ -786,7 +786,19 @@ export default function CreatePage() {
                   }
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                {/* Audio player section - shown only when audio is generated */}
+                {generatedAudioUrl && (
+                  <div className="border rounded-lg p-4 bg-muted/10">
+                    <h3 className="text-lg font-medium mb-4">Generated Audio</h3>
+                    <AudioPlayer 
+                      src={generatedAudioUrl} 
+                      title={generatedAudioTitle || `${podcastTopic} - Part ${currentPodcastPart}`}
+                    />
+                  </div>
+                )}
+                
+                {/* Script text */}
                 <div className="h-[400px] overflow-y-auto bg-muted/20 p-4 rounded-md">
                   <pre className="whitespace-pre-wrap">{podcastScript}</pre>
                 </div>
@@ -847,6 +859,22 @@ export default function CreatePage() {
                   </Button>
                 </div>
               </CardFooter>
+            </Card>
+          )}
+          
+          {/* Standalone Audio Player Card - shown when there's no script but audio exists (e.g., after page reset) */}
+          {!podcastScript && generatedAudioUrl && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Generated Audio</CardTitle>
+                <CardDescription>Listen to your generated podcast</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AudioPlayer 
+                  src={generatedAudioUrl} 
+                  title={generatedAudioTitle || "Generated Podcast"}
+                />
+              </CardContent>
             </Card>
           )}
         </div>
