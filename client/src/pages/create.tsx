@@ -171,7 +171,7 @@ export default function CreatePage() {
     }
   };
 
-  // Mutation for podcast script generation
+  // Mutation for podcast research and script generation
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
       return apiRequest("/api/podcast/research", {
@@ -190,9 +190,14 @@ export default function CreatePage() {
     },
     onSuccess: (data) => {
       setPodcastScript(data.script);
-      if (!podcastResearchResults) {
+      
+      // Store research results from the first part for subsequent parts
+      if (currentPodcastPart === 1) {
         setPodcastResearchFinished(true);
+        // Store the research results for future parts
+        setPodcastResearchResults(data.searchResults || "");
       }
+      
       toast({
         title: "Podcast script generated",
         description: `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
@@ -221,19 +226,29 @@ export default function CreatePage() {
       });
     },
     onSuccess: (data) => {
-      // Save the last part's content for continuity
+      // Save the last part's content for continuity in the next part
       setPreviousPartContent(podcastScript);
       
-      // If we have more parts to generate, increment part
+      // If we have more parts to generate, increment part and clear the script
       if (podcastMultipart && currentPodcastPart < podcastParts) {
         setCurrentPodcastPart(prev => prev + 1);
         setPodcastScript("");
+        
+        toast({
+          title: "Podcast audio created",
+          description: `Audio for part ${currentPodcastPart} has been added to your library. Ready to generate part ${currentPodcastPart + 1}.`
+        });
+      } else {
+        toast({
+          title: "Podcast complete!",
+          description: `All ${podcastMultipart ? podcastParts : 1} parts of your podcast have been created and added to your library.`
+        });
+        
+        // Complete workflow - optionally reset for a new podcast
+        setTimeout(() => {
+          resetPodcastWorkflow();
+        }, 2000);
       }
-      
-      toast({
-        title: "Podcast audio created",
-        description: `Audio for part ${currentPodcastPart} has been added to your library`
-      });
     },
     onError: (error: Error) => {
       toast({
@@ -243,6 +258,21 @@ export default function CreatePage() {
       });
     }
   });
+  
+  // Generate the next part of a multi-part podcast
+  const generateNextPart = () => {
+    if (podcastMultipart && currentPodcastPart < podcastParts) {
+      // Store the current script content for continuity
+      setPreviousPartContent(podcastScript);
+      
+      // Clear current script and increment part number
+      setPodcastScript("");
+      setCurrentPodcastPart(prev => prev + 1);
+      
+      // Start generation of the next part
+      podcastResearchMutation.mutate();
+    }
+  };
   
   // Reset the podcast creation workflow
   const resetPodcastWorkflow = () => {
@@ -684,7 +714,12 @@ export default function CreatePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Podcast Script - Part {currentPodcastPart}/{podcastMultipart ? podcastParts : 1}</span>
+                  <div className="flex items-center">
+                    <span>Podcast Script</span>
+                    <div className="ml-2 px-2 py-1 bg-primary/10 rounded-md text-sm">
+                      Part {currentPodcastPart} of {podcastMultipart ? podcastParts : 1}
+                    </div>
+                  </div>
                   {podcastResearchFinished && (
                     <div className="flex items-center text-sm text-green-600 font-normal">
                       <CheckCircle2 className="h-4 w-4 mr-1" /> Research Complete
@@ -692,7 +727,10 @@ export default function CreatePage() {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Review your generated script before converting to audio
+                  {podcastMultipart 
+                    ? `This script will be approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio in a ${podcastDuration * podcastParts}-minute total podcast`
+                    : `This script will create approximately ${Math.round(podcastScript.split(/\s+/).length / 150)} minutes of audio`
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -700,9 +738,10 @@ export default function CreatePage() {
                   <pre className="whitespace-pre-wrap">{podcastScript}</pre>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between">
+              <CardFooter className="flex flex-wrap gap-2 justify-between">
                 <Button 
                   variant="outline" 
+                  size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(podcastScript);
                     toast({
@@ -714,22 +753,46 @@ export default function CreatePage() {
                   <Copy className="mr-2 h-4 w-4" />
                   Copy to Clipboard
                 </Button>
-                <Button 
-                  onClick={() => ttsConversionMutation.mutate()}
-                  disabled={ttsConversionMutation.isPending}
-                >
-                  {ttsConversionMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Converting to Audio...
-                    </>
-                  ) : (
-                    <>
-                      <FileAudio className="mr-2 h-4 w-4" />
-                      Convert to Audio
-                    </>
+                
+                <div className="flex gap-2">
+                  {/* Only show Generate Next Part if we're in a multi-part podcast and have more parts to generate */}
+                  {podcastMultipart && currentPodcastPart < podcastParts && (
+                    <Button 
+                      onClick={generateNextPart}
+                      disabled={podcastResearchMutation.isPending}
+                      variant="secondary"
+                    >
+                      {podcastResearchMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          Generate Part {currentPodcastPart + 1}
+                        </>
+                      )}
+                    </Button>
                   )}
-                </Button>
+                  
+                  <Button 
+                    onClick={() => ttsConversionMutation.mutate()}
+                    disabled={ttsConversionMutation.isPending}
+                  >
+                    {ttsConversionMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Converting to Audio...
+                      </>
+                    ) : (
+                      <>
+                        <FileAudio className="mr-2 h-4 w-4" />
+                        Convert to Audio
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           )}

@@ -1146,7 +1146,7 @@ The script should:
         throw new Error("Failed to generate podcast script");
       }
       
-      // Return the generated script
+      // Return the generated script and research results
       res.json({
         topic: data.topic,
         script: scriptText,
@@ -1155,7 +1155,8 @@ The script should:
         part: data.part || 1,
         totalParts: data.totalParts || 1,
         approximateWords: scriptText.split(/\s+/).length,
-        estimatedDuration: Math.round(scriptText.split(/\s+/).length / 150) // ~150 words per minute
+        estimatedDuration: Math.round(scriptText.split(/\s+/).length / 150), // ~150 words per minute
+        searchResults: searchResults // Include the research results for future parts
       });
       
     } catch (error: any) {
