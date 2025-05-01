@@ -100,12 +100,13 @@ export default function CreatePage() {
   const [isAutomatedGeneration, setIsAutomatedGeneration] = useState(false);
   const [generatedParts, setGeneratedParts] = useState<{[key: number]: string}>({});
   const [processingPart, setProcessingPart] = useState<number | null>(null);
+  const [autoGenerateAudio, setAutoGenerateAudio] = useState(true); // Auto-generate audio by default
   
   // Function to play a voice sample
   const playVoiceSample = (voice: string) => {
     setPlayingVoiceSample(voice);
-    // Fix: Add .mp3 extension to the voice sample URL
-    const audio = new Audio(`/api/voice-samples/${voice}`);
+    // Make sure to use the full path with .mp3 extension
+    const audio = new Audio(`/api/voice-samples/${voice}.mp3`);
     audio.onended = () => setPlayingVoiceSample(null);
     audio.play().catch(err => {
       console.error("Error playing sample:", err);
@@ -229,6 +230,13 @@ export default function CreatePage() {
         title: "Podcast script generated",
         description: `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
       });
+      
+      // Auto-generate audio for single-part podcast if enabled
+      if (autoGenerateAudio && !isAutomatedGeneration && (!podcastMultipart || (podcastMultipart && currentPodcastPart === podcastParts))) {
+        setTimeout(() => {
+          ttsConversionMutation.mutate();
+        }, 500);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -398,6 +406,13 @@ export default function CreatePage() {
             title: "Complete Podcast Generated!",
             description: `All ${podcastParts} parts have been generated and combined.`
           });
+          
+          // Auto-generate audio for the combined script if enabled
+          if (autoGenerateAudio) {
+            setTimeout(() => {
+              ttsConversionMutation.mutate();
+            }, 500);
+          }
         } 
         // Otherwise, proceed to the next part
         else {
@@ -430,7 +445,7 @@ export default function CreatePage() {
       const timer = setTimeout(processPart, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isAutomatedGeneration, podcastScript, currentPodcastPart, podcastParts, generatedParts]);
+  }, [isAutomatedGeneration, podcastScript, currentPodcastPart, podcastParts, generatedParts, autoGenerateAudio]);
   
   // Reset the podcast creation workflow
   const resetPodcastWorkflow = () => {
@@ -863,6 +878,18 @@ export default function CreatePage() {
                   ))}
                 </div>
               </div>
+              
+              {/* Auto-generate audio option */}
+              <div className="flex items-center space-x-2 pt-2">
+                <Switch 
+                  id="auto-generate-audio" 
+                  checked={autoGenerateAudio}
+                  onCheckedChange={setAutoGenerateAudio}
+                />
+                <Label htmlFor="auto-generate-audio">
+                  Automatically convert script to audio after generation
+                </Label>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-3">
               <div className="w-full flex gap-2">
@@ -956,7 +983,40 @@ export default function CreatePage() {
                 {/* Audio player section - shown only when audio is generated */}
                 {generatedAudioUrl && (
                   <div className="border rounded-lg p-4 bg-muted/10">
-                    <h3 className="text-lg font-medium mb-4">Generated Audio</h3>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium">Generated Audio</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Create an anchor element for downloading
+                          const a = document.createElement('a');
+                          a.href = generatedAudioUrl;
+                          
+                          // Set download attribute with a clean filename
+                          const cleanFilename = generatedAudioTitle
+                            ? generatedAudioTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.mp3'
+                            : `podcast_${Date.now()}.mp3`;
+                          
+                          a.download = cleanFilename;
+                          document.body.appendChild(a);
+                          a.click();
+                          
+                          // Clean up
+                          setTimeout(() => {
+                            document.body.removeChild(a);
+                          }, 0);
+                          
+                          toast({
+                            title: "Downloaded!",
+                            description: "Audio file downloaded successfully",
+                          });
+                        }}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Audio
+                      </Button>
+                    </div>
                     <AudioPlayer 
                       src={generatedAudioUrl} 
                       title={generatedAudioTitle || `${podcastTopic} - Part ${currentPodcastPart}`}
@@ -1070,8 +1130,43 @@ export default function CreatePage() {
           {!podcastScript && generatedAudioUrl && (
             <Card>
               <CardHeader>
-                <CardTitle>Generated Audio</CardTitle>
-                <CardDescription>Listen to your generated podcast</CardDescription>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Generated Audio</CardTitle>
+                    <CardDescription>Listen to your generated podcast</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Create an anchor element for downloading
+                      const a = document.createElement('a');
+                      a.href = generatedAudioUrl;
+                      
+                      // Set download attribute with a clean filename
+                      const cleanFilename = generatedAudioTitle
+                        ? generatedAudioTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.mp3'
+                        : `podcast_${Date.now()}.mp3`;
+                      
+                      a.download = cleanFilename;
+                      document.body.appendChild(a);
+                      a.click();
+                      
+                      // Clean up
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                      }, 0);
+                      
+                      toast({
+                        title: "Downloaded!",
+                        description: "Audio file downloaded successfully",
+                      });
+                    }}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Audio
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <AudioPlayer 
