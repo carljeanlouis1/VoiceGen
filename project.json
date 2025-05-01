@@ -1,0 +1,63 @@
+{
+  "name": "VoiceGen",
+  "description": "An AI-powered web application that provides intelligent, interactive multimedia content creation, search, and audio generation using multiple AI models and APIs.",
+  "entry_point": "server/index.ts",
+  "language": "TypeScript",
+  "dependencies": [
+    "express",
+    "react",
+    "openai",
+    "@anthropic-ai/sdk",
+    "@google/generative-ai",
+    "tailwindcss",
+    "@tanstack/react-query",
+    "zod",
+    "wouter",
+    "node-fetch",
+    "ws"
+  ],
+  "features": {
+    "text_to_speech": true,
+    "web_search_integration": true,
+    "podcast_generation": true,
+    "multi_model_chat": true,
+    "content_creation": true,
+    "image_analysis": true,
+    "audio_library": true,
+    "background_processing": true
+  },
+  "models_used": [
+    "gpt-4o",
+    "claude-3-7-sonnet-20250219",
+    "gemini-2.5-pro",
+    "perplexity-sonar-pro"
+  ],
+  "api_integrations": [
+    "OpenAI API",
+    "Anthropic API",
+    "Google Gemini API",
+    "Perplexity API"
+  ],
+  "client_technologies": [
+    "React",
+    "TypeScript",
+    "Tailwind CSS",
+    "shadcn/ui",
+    "React Query"
+  ],
+  "server_technologies": [
+    "Node.js",
+    "Express",
+    "TypeScript",
+    "MemStorage"
+  ],
+  "voice_options": [
+    "alloy",
+    "echo",
+    "fable",
+    "onyx",
+    "nova",
+    "shimmer"
+  ],
+  "workflow": "Start application"
+}
