@@ -282,6 +282,60 @@ export default function CreatePage() {
     }
   });
   
+  // For tracking background processing job status
+  const [processingJobId, setProcessingJobId] = useState<number | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  
+  // Effect for polling job status if needed
+  useEffect(() => {
+    if (processingJobId === null) return;
+    
+    let intervalId: NodeJS.Timeout;
+    
+    const checkJobStatus = async () => {
+      try {
+        console.log(`Checking status for job ${processingJobId}`);
+        const response = await fetch(`/api/text-to-speech/status/${processingJobId}`);
+        if (!response.ok) throw new Error('Failed to check job status');
+        
+        const data = await response.json();
+        console.log(`Job status:`, data);
+        
+        setProcessingProgress(data.progress || 0);
+        
+        // If job is complete, update the audio URL and stop polling
+        if (data.status === 'complete' && data.audioUrl) {
+          setGeneratedAudioUrl(data.audioUrl);
+          setProcessingJobId(null);
+          toast({
+            title: "Audio generated successfully",
+            description: "You can now listen to the audio directly on this page"
+          });
+        } else if (data.status === 'error') {
+          // Handle error
+          setProcessingJobId(null);
+          toast({
+            title: "Error generating audio",
+            description: data.error || "An unknown error occurred",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error checking job status:', error);
+      }
+    };
+    
+    // Check immediately first
+    checkJobStatus();
+    
+    // Then set up interval
+    intervalId = setInterval(checkJobStatus, 2000);
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [processingJobId]);
+  
   // Text-to-speech conversion for the podcast script
   const ttsConversionMutation = useMutation({
     mutationFn: async () => {
@@ -292,7 +346,9 @@ export default function CreatePage() {
         ? `${podcastTopic} - Complete (${podcastParts} Parts)`
         : `${podcastTopic} - Part ${currentPodcastPart}`;
       
-      return apiRequest("/api/text-to-speech", {
+      console.log(`Sending TTS request for podcast "${title}" with voice: ${podcastVoice}`);
+      
+      const response = await apiRequest("/api/text-to-speech", {
         method: "POST",
         data: {
           title: title,
@@ -301,6 +357,9 @@ export default function CreatePage() {
           generateArtwork: true
         }
       });
+      
+      console.log("Text-to-speech API raw response:", response);
+      return response;
     },
     onSuccess: (data) => {
       // Save the last part's content for continuity in the next part
@@ -311,15 +370,26 @@ export default function CreatePage() {
       
       // Determine if this is a combined multi-part script
       const isMultiPartCombined = podcastMultipart && combinedScript && combinedScript === podcastScript;
-      
-      // Set the audio URL for playback on the page
-      if (data) {
-        const audioTitle = isMultiPartCombined
-          ? `${podcastTopic} - Complete (${podcastParts} Parts)`
-          : `${podcastTopic} - Part ${currentPodcastPart}`;
-          
-        setGeneratedAudioTitle(audioTitle);
+      const audioTitle = isMultiPartCombined
+        ? `${podcastTopic} - Complete (${podcastParts} Parts)`
+        : `${podcastTopic} - Part ${currentPodcastPart}`;
         
+      setGeneratedAudioTitle(audioTitle);
+      
+      // Handle background processing job
+      if (data && data.status === 'processing') {
+        setProcessingJobId(data.id);
+        setProcessingProgress(data.progress || 0);
+        
+        toast({
+          title: "Processing Started",
+          description: "Your podcast is being converted to audio in the background. This may take a few minutes.",
+        });
+        return;
+      }
+      
+      // Handle immediate completion - set the audio URL for playback on the page
+      if (data) {
         // Check different possible properties for the audio URL
         if (data.audioUrl) {
           setGeneratedAudioUrl(data.audioUrl);
@@ -328,8 +398,8 @@ export default function CreatePage() {
         } else if (typeof data === 'string') {
           // Handle if the API returns just a string URL
           setGeneratedAudioUrl(data);
-        } else if (data.id) {
-          // Fallback to using ID if available
+        } else if (data.id && !data.status) { // Check it's not a job status object
+          // If it's an audio file object with just an ID
           setGeneratedAudioUrl(`/api/audio/${data.id}.mp3`);
         } else {
           console.error("Could not determine audio URL from API response:", data);
@@ -1040,6 +1110,25 @@ export default function CreatePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Audio processing progress indicator */}
+                {processingJobId !== null && (
+                  <div className="border rounded-lg p-4 bg-muted/10 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-medium">Processing Audio</h3>
+                      <span className="text-sm text-muted-foreground">{processingProgress}% complete</span>
+                    </div>
+                    <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-primary h-full transition-all duration-300 ease-in-out" 
+                        style={{ width: `${processingProgress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Converting your podcast script to audio. This may take a few minutes for longer scripts.
+                    </p>
+                  </div>
+                )}
+                
                 {/* Audio player section - shown only when audio is generated */}
                 {generatedAudioUrl && (
                   <div className="border rounded-lg p-4 bg-muted/10">
