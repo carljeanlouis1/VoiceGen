@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
   Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
-  Volume2, Download
+  Volume2, Download, Square
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -102,22 +102,57 @@ export default function CreatePage() {
   const [processingPart, setProcessingPart] = useState<number | null>(null);
   const [autoGenerateAudio, setAutoGenerateAudio] = useState(true); // Auto-generate audio by default
   
+  // Audio reference for voice samples
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Function to play a voice sample
-  const playVoiceSample = (voice: string) => {
-    setPlayingVoiceSample(voice);
-    // Make sure to use the full path with .mp3 extension
-    const audio = new Audio(`/api/voice-samples/${voice}.mp3`);
-    audio.onended = () => setPlayingVoiceSample(null);
-    audio.play().catch(err => {
-      console.error("Error playing sample:", err);
+  const playVoiceSample = async (voice: string) => {
+    try {
+      if (playingVoiceSample === voice) {
+        // Stop playing
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        setPlayingVoiceSample(null);
+      } else {
+        // Start playing a new voice
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        
+        // Show loading state
+        setPlayingVoiceSample("loading");
+        
+        // Fetch the voice sample
+        const response = await fetch(`/api/voice-samples/${voice}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load voice sample: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        const audio = new Audio(data.audioUrl);
+        audioRef.current = audio;
+        
+        audio.onended = () => {
+          setPlayingVoiceSample(null);
+        };
+        
+        await audio.play();
+        setPlayingVoiceSample(voice);
+      }
+    } catch (err) {
+      console.error("Error playing audio sample:", err);
       setPlayingVoiceSample(null);
-      // Show error toast for better user feedback
       toast({
         title: "Error",
-        description: "Could not play voice sample. Please try again.",
+        description: "Failed to play voice sample. Please try again.",
         variant: "destructive"
       });
-    });
+    }
   };
 
   // Handle image upload
@@ -868,8 +903,10 @@ export default function CreatePage() {
                         onClick={() => playVoiceSample(voice)}
                         title={`Play ${voice} sample`}
                       >
-                        {playingVoiceSample === voice ? (
+                        {playingVoiceSample === "loading" ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : playingVoiceSample === voice ? (
+                          <Square className="h-4 w-4" />
                         ) : (
                           <Volume2 className="h-4 w-4" />
                         )}
