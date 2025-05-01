@@ -306,17 +306,40 @@ export default function CreatePage() {
       // Save the last part's content for continuity in the next part
       setPreviousPartContent(podcastScript);
       
+      // Log the response data for debugging
+      console.log("Text-to-speech API response:", data);
+      
       // Determine if this is a combined multi-part script
       const isMultiPartCombined = podcastMultipart && combinedScript && combinedScript === podcastScript;
       
       // Set the audio URL for playback on the page
-      if (data && data.id) {
+      if (data) {
         const audioTitle = isMultiPartCombined
           ? `${podcastTopic} - Complete (${podcastParts} Parts)`
           : `${podcastTopic} - Part ${currentPodcastPart}`;
           
         setGeneratedAudioTitle(audioTitle);
-        setGeneratedAudioUrl(`/api/audio/${data.audioFilename}`);
+        
+        // Check different possible properties for the audio URL
+        if (data.audioUrl) {
+          setGeneratedAudioUrl(data.audioUrl);
+        } else if (data.audioFilename) {
+          setGeneratedAudioUrl(`/api/audio/${data.audioFilename}`);
+        } else if (typeof data === 'string') {
+          // Handle if the API returns just a string URL
+          setGeneratedAudioUrl(data);
+        } else if (data.id) {
+          // Fallback to using ID if available
+          setGeneratedAudioUrl(`/api/audio/${data.id}.mp3`);
+        } else {
+          console.error("Could not determine audio URL from API response:", data);
+          toast({
+            title: "Warning",
+            description: "Audio was generated but playback URL could not be determined",
+            variant: "destructive"
+          });
+          return;
+        }
         
         toast({
           title: "Audio generated successfully",
