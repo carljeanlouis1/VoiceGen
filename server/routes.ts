@@ -1212,7 +1212,7 @@ Example of Arion's voice: "While OpenAI's user base just crossed a billion, the 
       
       res.status(201).json({
         message: "Podcast project created successfully",
-        projectId
+        id: projectId
       });
     } catch (error) {
       console.error("Error creating podcast project:", error);
