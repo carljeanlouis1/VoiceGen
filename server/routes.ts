@@ -41,6 +41,10 @@ if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY environment variable is required");
 }
 
+if (!process.env.PERPLEXITY_API_KEY) {
+  console.warn("PERPLEXITY_API_KEY environment variable is not set. Enhanced podcast features will be limited.");
+}
+
 // Audio directory for file storage
 const AUDIO_DIR = path.join(process.cwd(), 'public/audio');
 
