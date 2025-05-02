@@ -1,25 +1,31 @@
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { TopicAnalysis, ResearchResult, PodcastStructure } from "../../shared/schema";
 import { log } from "../vite";
 import crypto from "crypto";
 
 export class NarrativeService {
   private anthropicClient: Anthropic;
+  private openaiClient: OpenAI;
   
   constructor() {
     this.anthropicClient = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY || "",
     });
+    this.openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || "",
+    });
   }
   
   /**
-   * Creates the podcast structure with Claude
+   * Creates the podcast structure with Claude or GPT-4o
    */
   async createPodcastStructure(
     topic: string,
     topicAnalysis: TopicAnalysis,
     mainResearch: ResearchResult[],
-    targetDuration: number
+    targetDuration: number,
+    model: "gpt" | "claude" = "claude"
   ): Promise<PodcastStructure> {
     log(`Creating podcast structure for topic: "${topic}" with target duration: ${targetDuration} minutes`);
     

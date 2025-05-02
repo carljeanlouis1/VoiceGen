@@ -137,6 +137,7 @@ export interface PodcastProject {
   topic: string;
   targetDuration: number; // minutes
   voice: string; // TTS voice option
+  model: "gpt" | "claude"; // AI model selection
   status: PodcastStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -161,6 +162,7 @@ export const enhancedPodcastProjectSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
   targetDuration: z.number().min(5).max(60),
   voice: z.enum(AVAILABLE_VOICES),
+  model: z.enum(["gpt", "claude"]).default("gpt"), // Add model selection with default
 });
 
 // Maximum characters per chunk for OpenAI's TTS

@@ -38,10 +38,11 @@ export class PodcastProjectManager {
     topic: string;
     targetDuration: number;
     voice: string;
+    model: "gpt" | "claude";
   }): Promise<string> {
     const projectId = this.generateUUID();
     
-    log(`Creating new podcast project with ID ${projectId} for topic: "${params.topic}"`);
+    log(`Creating new podcast project with ID ${projectId} for topic: "${params.topic}" using model: ${params.model}`);
     
     // Initialize project
     const project: PodcastProject = {
@@ -49,6 +50,7 @@ export class PodcastProjectManager {
       topic: params.topic,
       targetDuration: params.targetDuration,
       voice: params.voice,
+      model: params.model, // Add the selected model
       status: 'initializing',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -108,8 +110,8 @@ export class PodcastProjectManager {
     // Get project data
     const project = await this.getProject(projectId);
     
-    // 1.1 Analyze topic using Claude to break it down
-    const topicAnalysis = await this.researchService.analyzeTopicWithClaude(project.topic);
+    // 1.1 Analyze topic using the selected model (Claude or GPT-4o) to break it down
+    const topicAnalysis = await this.researchService.analyzeTopicWithClaude(project.topic, project.model);
     await this.updateProject(projectId, {
       researchData: {
         topicAnalysis,
@@ -144,12 +146,13 @@ export class PodcastProjectManager {
       throw new Error("Research data not available");
     }
     
-    // 2.1 Create podcast structure using Claude
+    // 2.1 Create podcast structure using the selected model
     const podcastStructure = await this.narrativeService.createPodcastStructure(
       project.topic,
       project.researchData.topicAnalysis,
       project.researchData.mainResearch,
-      project.targetDuration
+      project.targetDuration,
+      project.model // Pass the selected model
     );
     
     await this.updateProject(projectId, { 
@@ -157,10 +160,11 @@ export class PodcastProjectManager {
       progress: 30
     });
     
-    // 2.2 Create narrative guide using Claude
+    // 2.2 Create narrative guide using the selected model
     const narrativeGuide = await this.narrativeService.createNarrativeGuide(
       project.topic,
-      podcastStructure
+      podcastStructure,
+      project.model // Pass the selected model
     );
     
     await this.updateProject(projectId, { 

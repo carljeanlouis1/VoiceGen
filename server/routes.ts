@@ -1206,12 +1206,13 @@ Example of Arion's voice: "While OpenAI's user base just crossed a billion, the 
     try {
       const data = enhancedPodcastProjectSchema.parse(req.body);
       
-      log(`Creating new podcast project with topic: "${data.topic}"`);
+      log(`Creating new podcast project with topic: "${data.topic}" using model: ${data.model}`);
       
       const projectId = await podcastProjectManager.createPodcast({
         topic: data.topic,
         targetDuration: data.targetDuration || 20,
-        voice: data.voice
+        voice: data.voice,
+        model: data.model || "gpt" // Default to GPT if not specified
       });
       
       res.status(201).json({
