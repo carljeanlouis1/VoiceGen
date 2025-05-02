@@ -86,7 +86,7 @@ export class AudioService {
       
       const response = await this.openaiClient.audio.speech.create({
         model: 'tts-1',
-        voice,
+        voice: voice as any, // Cast to any to avoid type issues with voice options
         input: chunk,
       });
       

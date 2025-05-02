@@ -55,7 +55,11 @@ Format your response as a structured JSON object with the following schema:
       });
       
       try {
-        return JSON.parse(response.content[0].text);
+        // Handle the structure of the response content
+        const responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
+          ? response.content[0].text 
+          : JSON.stringify(response.content[0]);
+        return JSON.parse(responseText);
       } catch (error) {
         console.error("Failed to parse Claude's topic analysis response as JSON:", error);
         throw new Error("Invalid response format from topic analysis");

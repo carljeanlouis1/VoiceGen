@@ -4,7 +4,13 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
-import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
+import { 
+  textToSpeechSchema, 
+  podcastScriptSchema,
+  enhancedPodcastProjectSchema, 
+  MAX_CHUNK_SIZE, 
+  AVAILABLE_VOICES 
+} from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
@@ -12,6 +18,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { generateGeminiContent, initGeminiClient } from "./gemini-client";
+import { PodcastProjectManager } from "./services/PodcastProjectManager";
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({

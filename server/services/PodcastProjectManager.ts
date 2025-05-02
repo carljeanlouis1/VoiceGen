@@ -217,7 +217,9 @@ export class PodcastProjectManager {
     const contentChunks: ContentChunk[] = [];
     let currentContext = ""; // Initial context is empty
     
-    for (const [index, chunkPlan] of chunkingStrategy.entries()) {
+    // Use a regular for loop to avoid Iterator issues
+    for (let i = 0; i < chunkingStrategy.length; i++) {
+      const chunkPlan = chunkingStrategy[i];
       // Generate content for this chunk
       const chunk = await this.contentGenerator.generateContentChunk({
         project,

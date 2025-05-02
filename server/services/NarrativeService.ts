@@ -106,7 +106,11 @@ Ensure all IDs are unique strings.
       });
       
       try {
-        const structure = JSON.parse(response.content[0].text);
+        // Handle the structure of the response content
+        const responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
+          ? response.content[0].text 
+          : JSON.stringify(response.content[0]);
+        const structure = JSON.parse(responseText);
         
         // Ensure IDs are unique if they aren't already
         structure.introduction.id = structure.introduction.id || `intro-${this.generateId()}`;
@@ -166,7 +170,11 @@ This guide will be used to ensure all segments of the podcast maintain narrative
         messages: [{ role: 'user', content: prompt }]
       });
       
-      return response.content[0].text;
+      // Handle the structure of the response content
+      if (typeof response.content[0] === 'object' && 'text' in response.content[0]) {
+        return response.content[0].text;
+      }
+      return JSON.stringify(response.content[0]);
     } catch (error) {
       console.error(`Error creating narrative guide: ${error}`);
       throw new Error(`Failed to create narrative guide: ${error}`);
