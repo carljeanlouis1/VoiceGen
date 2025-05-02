@@ -304,7 +304,8 @@ export default function CreatePage() {
         data: {
           topic: podcastTopic,
           targetDuration: podcastDuration,
-          voice: podcastVoice
+          voice: podcastVoice,
+          model: podcastModel // Add the selected model
         }
       });
     },
