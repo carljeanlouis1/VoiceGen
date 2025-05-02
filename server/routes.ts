@@ -217,36 +217,89 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         }
       );
 
-      // Save the audio file to disk instead of keeping it in memory
-      fs.writeFileSync(audioFilePath, audioBuffer);
-      log(`Audio file saved to disk: ${audioFilePath} (${audioBuffer.length} bytes)`);
+      // For very large files, use streams to write instead of fs.writeFileSync
+      let audioUrl = `/api/audio/${uniqueId}.mp3`; // Define here to avoid TypeScript errors
       
-      // Create a URL that references the file for client access
-      // We're using a relative URL that the Express server will handle
-      const audioUrl = `/api/audio/${uniqueId}.mp3`;
-      
-      // Save to storage
-      const audioFile = await storage.createAudioFile({
-        title: data.title,
-        text: data.text,
-        voice: data.voice,
-        audioUrl,
-        duration: Math.ceil(audioBuffer.length / 32000), // Better estimate for MP3 duration at 128kbps (16KB/s)
-        summary,
-        artworkUrl
-      });
-      
-      // Update job with completion info
-      const job = processingJobs.get(jobId);
-      if (job) {
-        job.status = 'complete';
-        job.progress = 100;
-        job.audioUrl = audioUrl;
-        job.audioFilePath = audioFilePath;
-        processingJobs.set(jobId, job);
+      try {
+        // Get the size of the audio buffer for logging
+        const bufferSize = audioBuffer.length;
+        log(`Writing audio buffer (${bufferSize} bytes, ~${Math.ceil(bufferSize/1024/1024)}MB) to file: ${audioFilePath}`);
+        
+        // Create a write stream with sensible options for large files
+        const writeStream = fs.createWriteStream(audioFilePath, {
+          flags: 'w',
+          encoding: 'binary',
+          highWaterMark: 1024 * 1024 // 1MB chunks for writing
+        });
+        
+        // Set up event handlers for the write stream
+        writeStream.on('error', (err) => {
+          log(`Error writing audio file: ${err.message}`);
+          throw new Error(`Failed to write audio file: ${err.message}`);
+        });
+        
+        // Write the buffer to the file using a promise
+        await new Promise<void>((resolve, reject) => {
+          writeStream.write(audioBuffer, (err) => {
+            if (err) {
+              log(`Error during write: ${err.message}`);
+              reject(err);
+              return;
+            }
+            
+            writeStream.end(() => {
+              log(`Audio file successfully written to: ${audioFilePath}`);
+              resolve();
+            });
+          });
+          
+          writeStream.on('error', reject);
+        });
+        
+        // Verify the file was written correctly
+        if (!fs.existsSync(audioFilePath)) {
+          throw new Error(`File was not created: ${audioFilePath}`);
+        }
+        
+        const stats = fs.statSync(audioFilePath);
+        log(`File ${audioFilePath} written successfully: ${stats.size} bytes`);
+        
+        // Save to storage with improved duration calculation
+        const audioFile = await storage.createAudioFile({
+          title: data.title,
+          text: data.text,
+          voice: data.voice,
+          audioUrl,
+          duration: Math.ceil(bufferSize / 24000), // Better estimate for MP3 duration at 192kbps (24KB/s)
+          summary,
+          artworkUrl
+        });
+        
+        // Update job with completion info
+        const job = processingJobs.get(jobId);
+        if (job) {
+          job.status = 'complete';
+          job.progress = 100;
+          job.audioUrl = audioUrl;
+          job.audioFilePath = audioFilePath;
+          processingJobs.set(jobId, job);
+        }
+        
+        log(`Background job #${jobId} completed successfully with audio ID: ${audioFile.id}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log(`Error saving audio file: ${errorMessage}`);
+        
+        // Update job with error info
+        const job = processingJobs.get(jobId);
+        if (job) {
+          job.status = 'error';
+          job.error = errorMessage;
+          processingJobs.set(jobId, job);
+        }
+        
+        throw error;
       }
-      
-      log(`Background job #${jobId} completed successfully`);
     } catch (error: any) {
       log(`Error in background job #${jobId}: ${error.message}`);
       
@@ -513,9 +566,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const filename = req.params.filename;
     const filePath = path.join(AUDIO_DIR, filename);
     
+    log(`Audio file request: ${filename} (looking at path: ${filePath})`);
+    
     // Check if file exists
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "Audio file not found" });
+      log(`Audio file not found: ${filePath}`);
+      return res.status(404).json({ error: "Audio file not found", path: filePath });
     }
     
     try {
@@ -523,35 +579,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stats = fs.statSync(filePath);
       const fileSize = stats.size;
       
+      log(`Audio file found: ${filePath} (${fileSize} bytes, ~${Math.ceil(fileSize / 1024 / 1024)}MB)`);
+      
       // Handle range requests for better seeking support
       const range = req.headers.range;
       
-      // Try to get the actual duration from the database if available
-      let actualDuration = 0;
-      try {
-        // Extract file ID from filename (assuming format like "audio_123.mp3")
-        const fileIdMatch = filename.match(/audio_(\d+)\.mp3$/);
-        if (fileIdMatch && fileIdMatch[1]) {
-          const fileId = parseInt(fileIdMatch[1], 10);
-          const audioFile = await storage.getAudioFile(fileId);
-          if (audioFile) {
-            actualDuration = audioFile.duration;
-          }
-        }
-      } catch (err) {
-        // If retrieving actual duration fails, fall back to estimation
-        log(`Error retrieving audio duration: ${err}`);
-      }
-      
-      // Estimate audio duration based on file size as fallback (rough approximation)
-      const estimatedDuration = actualDuration || Math.ceil(fileSize / 16000); // ~16KB per second at 128kbps
+      // Estimate audio duration based on file size (rough approximation)
+      // Use higher bitrate estimate for better accuracy with larger files
+      const estimatedDuration = Math.ceil(fileSize / 24000); // ~24KB per second at 192kbps
       
       if (range) {
+        log(`Range request received: ${range}`);
         // Handle range requests for better seeking support
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
         const chunkSize = (end - start) + 1;
+        
+        log(`Serving range: ${start}-${end}/${fileSize} (${chunkSize} bytes)`);
         
         // Set partial content headers
         res.status(206);
@@ -566,10 +611,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', 'Range');
         
-        // Stream the file slice
-        const fileStream = fs.createReadStream(filePath, { start, end });
+        // Stream the file slice with error handling
+        const fileStream = fs.createReadStream(filePath, { 
+          start, 
+          end,
+          highWaterMark: 64 * 1024 // 64KB chunks for better memory management
+        });
+        
+        // Handle streaming errors
+        fileStream.on('error', (err) => {
+          log(`Stream error for range request: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Error streaming file", message: err.message });
+          }
+        });
+        
         fileStream.pipe(res);
       } else {
+        log(`Serving full file: ${filePath} (${fileSize} bytes)`);
+        
         // Handle normal requests
         // Set appropriate headers
         res.setHeader('Content-Type', 'audio/mpeg');
@@ -583,8 +643,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.setHeader('Cache-Control', 'no-cache, must-revalidate');
           res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
         } else {
-          // For normal playback, allow some caching but with validation
-          res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+          // For normal playback, disable caching for large files
+          res.setHeader('Cache-Control', 'no-cache, no-store');
           res.setHeader('Content-Disposition', `inline; filename=${filename}`);
         }
         
@@ -592,13 +652,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', 'Range');
         
-        // Stream the file instead of loading it all into memory
-        const fileStream = fs.createReadStream(filePath);
+        // Stream the file in chunks instead of loading it all into memory
+        const fileStream = fs.createReadStream(filePath, {
+          // Use a reasonable high water mark for large files
+          highWaterMark: 64 * 1024 // 64KB chunks
+        });
+        
+        // Handle streaming errors
+        fileStream.on('error', (err) => {
+          log(`Stream error for full file: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Error streaming file", message: err.message });
+          }
+        });
+        
+        // Handle unexpected connection closes
+        res.on('close', () => {
+          log(`Connection closed for ${filename}`);
+          fileStream.destroy();
+        });
+        
         fileStream.pipe(res);
       }
     } catch (error: any) {
       log(`Error serving audio file ${filename}: ${error.message}`);
-      res.status(500).json({ error: "Failed to serve audio file" });
+      res.status(500).json({ 
+        error: "Failed to serve audio file",
+        message: error.message,
+        path: filePath
+      });
     }
   });
 
