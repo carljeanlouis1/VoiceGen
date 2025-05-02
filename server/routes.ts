@@ -1195,6 +1195,66 @@ Example of Arion's voice: "While OpenAI's user base just crossed a billion, the 
     }
   }
 
+  // Enhanced Podcast Project API endpoints
+  
+  // Create a new podcast project
+  app.post('/api/podcast/projects', async (req: Request, res: Response) => {
+    try {
+      const data = enhancedPodcastProjectSchema.parse(req.body);
+      
+      log(`Creating new podcast project with topic: "${data.topic}"`);
+      
+      const projectId = await podcastProjectManager.createPodcast({
+        topic: data.topic,
+        targetDuration: data.targetDuration || 20,
+        voice: data.voice
+      });
+      
+      res.status(201).json({
+        message: "Podcast project created successfully",
+        projectId
+      });
+    } catch (error) {
+      console.error("Error creating podcast project:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // Get all podcast projects
+  app.get('/api/podcast/projects', async (req: Request, res: Response) => {
+    try {
+      const projects = await podcastProjectManager.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error("Error fetching podcast projects:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get a single podcast project by ID
+  app.get('/api/podcast/projects/:id', async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      const project = await podcastProjectManager.getProject(projectId);
+      res.json(project);
+    } catch (error) {
+      console.error(`Error fetching podcast project ${req.params.id}:`, error);
+      res.status(404).json({ error: "Project not found" });
+    }
+  });
+  
+  // Delete a podcast project
+  app.delete('/api/podcast/projects/:id', async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.id;
+      await podcastProjectManager.deleteProject(projectId);
+      res.json({ message: "Project deleted successfully" });
+    } catch (error) {
+      console.error(`Error deleting podcast project ${req.params.id}:`, error);
+      res.status(404).json({ error: "Project not found" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
