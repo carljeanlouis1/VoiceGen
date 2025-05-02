@@ -4,14 +4,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
-import { 
-  textToSpeechSchema, 
-  enhancedPodcastProjectSchema, 
-  MAX_CHUNK_SIZE, 
-  AVAILABLE_VOICES,
-  PodcastStatus,
-  PodcastProject
-} from "@shared/schema";
+import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
@@ -19,10 +12,6 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { generateGeminiContent, initGeminiClient } from "./gemini-client";
-import { PodcastProjectManager } from "./services/PodcastProjectManager";
-
-// Create the PodcastProjectManager instance
-const podcastProjectManager = new PodcastProjectManager();
 
 const openai = new OpenAI();
 const anthropic = new Anthropic({
@@ -39,10 +28,6 @@ if (!process.env.ANTHROPIC_API_KEY) {
 
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY environment variable is required");
-}
-
-if (!process.env.PERPLEXITY_API_KEY) {
-  console.warn("PERPLEXITY_API_KEY environment variable is not set. Enhanced podcast features will be limited.");
 }
 
 // Audio directory for file storage
@@ -1198,67 +1183,6 @@ Example of Arion's voice: "While OpenAI's user base just crossed a billion, the 
       });
     }
   }
-
-  // Enhanced Podcast Project API endpoints
-  
-  // Create a new podcast project
-  app.post('/api/podcast/projects', async (req: Request, res: Response) => {
-    try {
-      const data = enhancedPodcastProjectSchema.parse(req.body);
-      
-      log(`Creating new podcast project with topic: "${data.topic}" using model: ${data.model}`);
-      
-      const projectId = await podcastProjectManager.createPodcast({
-        topic: data.topic,
-        targetDuration: data.targetDuration || 20,
-        voice: data.voice,
-        model: data.model || "gpt" // Default to GPT if not specified
-      });
-      
-      res.status(201).json({
-        message: "Podcast project created successfully",
-        id: projectId
-      });
-    } catch (error) {
-      console.error("Error creating podcast project:", error);
-      res.status(400).json({ error: error.message });
-    }
-  });
-  
-  // Get all podcast projects
-  app.get('/api/podcast/projects', async (req: Request, res: Response) => {
-    try {
-      const projects = await podcastProjectManager.getAllProjects();
-      res.json(projects);
-    } catch (error) {
-      console.error("Error fetching podcast projects:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-  
-  // Get a single podcast project by ID
-  app.get('/api/podcast/projects/:id', async (req: Request, res: Response) => {
-    try {
-      const projectId = req.params.id;
-      const project = await podcastProjectManager.getProject(projectId);
-      res.json(project);
-    } catch (error) {
-      console.error(`Error fetching podcast project ${req.params.id}:`, error);
-      res.status(404).json({ error: "Project not found" });
-    }
-  });
-  
-  // Delete a podcast project
-  app.delete('/api/podcast/projects/:id', async (req: Request, res: Response) => {
-    try {
-      const projectId = req.params.id;
-      await podcastProjectManager.deleteProject(projectId);
-      res.json({ message: "Project deleted successfully" });
-    } catch (error) {
-      console.error(`Error deleting podcast project ${req.params.id}:`, error);
-      res.status(404).json({ error: "Project not found" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;

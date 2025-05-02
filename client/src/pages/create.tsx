@@ -88,7 +88,6 @@ export default function CreatePage() {
   const [podcastMultipart, setPodcastMultipart] = useState(false);
   const [podcastParts, setPodcastParts] = useState(1);
   const [podcastVoice, setPodcastVoice] = useState<typeof AVAILABLE_VOICES[number]>(AVAILABLE_VOICES[0]);
-  const [useEnhancedMode, setUseEnhancedMode] = useState(false); // Enhanced Continuity Architecture flag
   const [podcastScript, setPodcastScript] = useState("");
   const [podcastResearchResults, setPodcastResearchResults] = useState("");
   const [podcastResearchFinished, setPodcastResearchFinished] = useState(false);
@@ -235,100 +234,6 @@ export default function CreatePage() {
     }
   };
 
-  // States for enhanced podcast project
-  const [podcastProjectId, setPodcastProjectId] = useState<string | null>(null);
-  const [podcastProjectStatus, setPodcastProjectStatus] = useState<string | null>(null);
-  const [podcastProjectProgress, setPodcastProjectProgress] = useState(0);
-  
-  // Effect for polling project status
-  useEffect(() => {
-    if (!podcastProjectId) return;
-    
-    let intervalId: NodeJS.Timeout;
-    
-    const checkProjectStatus = async () => {
-      try {
-        const response = await fetch(`/api/podcast/projects/${podcastProjectId}`);
-        if (!response.ok) throw new Error('Failed to check project status');
-        
-        const data = await response.json();
-        setPodcastProjectStatus(data.status);
-        setPodcastProjectProgress(data.progress || 0);
-        
-        // If project is complete, update the script and stop polling
-        if (data.status === 'complete' && data.finalScript) {
-          setPodcastScript(data.finalScript);
-          
-          // If audio was generated, set the URL
-          if (data.audioUrl) {
-            setGeneratedAudioUrl(data.audioUrl);
-            setGeneratedAudioTitle(`${data.topic || podcastTopic} - Generated Podcast`);
-          }
-          
-          toast({
-            title: "Podcast generation complete",
-            description: "Your enhanced podcast has been created"
-          });
-          
-          // Clear project ID to stop polling
-          setPodcastProjectId(null);
-        } else if (data.status === 'failed') {
-          toast({
-            title: "Error generating podcast",
-            description: "There was an error generating your podcast",
-            variant: "destructive"
-          });
-          setPodcastProjectId(null);
-        }
-      } catch (error) {
-        console.error('Error checking project status:', error);
-      }
-    };
-    
-    // Check immediately first
-    checkProjectStatus();
-    
-    // Then set up interval
-    intervalId = setInterval(checkProjectStatus, 3000);
-    
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [podcastProjectId, podcastTopic]);
-
-  // Mutation for enhanced podcast creation
-  const enhancedPodcastMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("/api/podcast/projects", {
-        method: "POST",
-        data: {
-          topic: podcastTopic,
-          targetDuration: podcastDuration,
-          voice: podcastVoice,
-          model: podcastModel // Add the selected model
-        }
-      });
-    },
-    onSuccess: (data) => {
-      // Save the project ID for status polling
-      if (data && data.id) {
-        setPodcastProjectId(data.id);
-      }
-      
-      toast({
-        title: "Podcast Project Created",
-        description: "Your podcast is being generated in the background. You can monitor its progress."
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: `Failed to create podcast: ${error.message || "Unknown error"}`,
-        variant: "destructive"
-      });
-    }
-  });
-  
   // Mutation for podcast research and script generation
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
@@ -1061,21 +966,6 @@ export default function CreatePage() {
                 )}
               </div>
               
-              {/* Enhanced mode */}
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="enhanced-mode-toggle">Enhanced Architecture</Label>
-                  <Switch
-                    id="enhanced-mode-toggle"
-                    checked={useEnhancedMode}
-                    onCheckedChange={setUseEnhancedMode}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Use the Enhanced Continuity Architecture for better handling of long podcasts (recommended for 20+ minutes). This advanced system uses specialized AI services to maintain context and create a more cohesive, natural-sounding narrative across the entire podcast.
-                </p>
-              </div>
-
               {/* Step 4: Voice Selection */}
               <div className="space-y-2">
                 <Label>Voice Selection</Label>
@@ -1130,66 +1020,28 @@ export default function CreatePage() {
                   Automatically convert script to audio after generation
                 </Label>
               </div>
-
-              {/* Mode indicator */}
-              {useEnhancedMode ? (
-                <div className="flex items-center space-x-2 mt-4 p-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
-                  <Sparkles className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  <span className="text-sm text-green-700 dark:text-green-400">
-                    Enhanced Continuity Architecture active - generating seamless long-form content
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2 mt-4 p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
-                  <Search className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm text-blue-700 dark:text-blue-400">
-                    Standard mode active - best for shorter podcasts under 20 minutes
-                  </span>
-                </div>
-              )}
             </CardContent>
             <CardFooter className="flex flex-col space-y-3">
               <div className="w-full flex gap-2">
-                {/* Show different button depending on enhanced mode */}
-                {useEnhancedMode ? (
-                  <Button
-                    className="flex-1"
-                    onClick={() => enhancedPodcastMutation.mutate()}
-                    disabled={podcastTopic.trim() === "" || enhancedPodcastMutation.isPending}
-                  >
-                    {enhancedPodcastMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating Enhanced Podcast...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Enhanced Podcast
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    className="flex-1"
-                    onClick={() => podcastResearchMutation.mutate()}
-                    disabled={podcastTopic.trim() === "" || podcastResearchMutation.isPending || isAutomatedGeneration}
-                  >
-                    {podcastResearchMutation.isPending && !isAutomatedGeneration ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Researching & Writing...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="mr-2 h-4 w-4" />
-                        Generate Single Part
-                      </>
-                    )}
-                  </Button>
-                )}
+                <Button
+                  className="flex-1"
+                  onClick={() => podcastResearchMutation.mutate()}
+                  disabled={podcastTopic.trim() === "" || podcastResearchMutation.isPending || isAutomatedGeneration}
+                >
+                  {podcastResearchMutation.isPending && !isAutomatedGeneration ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Researching & Writing...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Generate Single Part
+                    </>
+                  )}
+                </Button>
                 
-                {podcastMultipart && !useEnhancedMode && (
+                {podcastMultipart && (
                   <Button
                     className="flex-1"
                     onClick={startAutomatedPodcastGeneration}
@@ -1219,24 +1071,6 @@ export default function CreatePage() {
                       className="bg-primary h-2.5 rounded-full transition-all duration-500" 
                       style={{ width: `${(((processingPart || 1) - 1) / podcastParts) * 100}%` }}
                     ></div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Status indicator for enhanced mode */}
-              {podcastProjectId && (
-                <div className="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded text-center text-sm">
-                  <div className="mb-1 font-medium">
-                    Enhanced podcast generation: {podcastProjectStatus || 'initializing'}
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-primary h-2.5 rounded-full transition-all duration-500" 
-                      style={{ width: `${podcastProjectProgress}%` }}
-                    ></div>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Using Enhanced Continuity Architecture for better long-form content
                   </div>
                 </div>
               )}
