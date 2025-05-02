@@ -101,7 +101,7 @@ Ensure all IDs are unique strings.
       const response = await this.anthropicClient.messages.create({
         model: 'claude-3-7-sonnet-20250219',
         max_tokens: 4000,
-        system: "You are an expert podcast producer who creates detailed, well-structured podcast outlines. Always return valid JSON.",
+        system: "You are an expert podcast producer who creates detailed, well-structured podcast outlines. Always return valid JSON without any markdown formatting, code fences, or explanations. Respond with only the raw JSON object.",
         messages: [{ role: 'user', content: prompt }]
       });
       
@@ -111,19 +111,43 @@ Ensure all IDs are unique strings.
           ? response.content[0].text 
           : JSON.stringify(response.content[0]);
           
-        // Remove markdown code fences if present
-        if (responseText.includes('```json')) {
-          responseText = responseText.replace(/```json\s*/, '');
-          responseText = responseText.replace(/\s*```\s*$/, '');
+        console.log("Original Claude structure response:", responseText.substring(0, 300));
+        
+        // Extract JSON from the response using regex to find content between code fences
+        const jsonRegex = /```(?:json)?\s*({[\s\S]*?})\s*```/;
+        const jsonMatch = responseText.match(jsonRegex);
+        
+        if (jsonMatch && jsonMatch[1]) {
+          responseText = jsonMatch[1].trim();
+          console.log("Extracted JSON within code fences:", responseText.substring(0, 100) + "...");
+        } else {
+          // If no code fences found, try to find a JSON object directly
+          const directJsonMatch = responseText.match(/({[\s\S]*})/);
+          if (directJsonMatch && directJsonMatch[1]) {
+            responseText = directJsonMatch[1].trim();
+            console.log("Extracted direct JSON:", responseText.substring(0, 100) + "...");
+          }
         }
         
-        // Clean up any other potential markdown formatting
-        responseText = responseText.trim();
-        
-        // Log the cleaned response text for debugging
-        console.log("Cleaned podcast structure response:", responseText.substring(0, 100) + "...");
+        // Try to parse the extracted JSON
+        let structure;
+        try {
+          structure = JSON.parse(responseText);
+        } catch (innerError) {
+          console.error("First JSON parse attempt failed:", innerError);
           
-        const structure = JSON.parse(responseText);
+          // If the direct parse fails, look for the first { and last }
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          
+          if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+            const possibleJson = responseText.substring(firstBrace, lastBrace + 1);
+            console.log("Attempting with extracted JSON object:", possibleJson.substring(0, 100) + "...");
+            structure = JSON.parse(possibleJson);
+          } else {
+            throw innerError;
+          }
+        }
         
         // Ensure IDs are unique if they aren't already
         structure.introduction.id = structure.introduction.id || `intro-${this.generateId()}`;

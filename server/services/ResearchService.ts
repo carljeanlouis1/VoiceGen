@@ -50,7 +50,7 @@ Format your response as a structured JSON object with the following schema:
       const response = await this.anthropicClient.messages.create({
         model: 'claude-3-7-sonnet-20250219',
         max_tokens: 4000,
-        system: "You are an expert podcast topic researcher who analyzes topics and creates structured research plans. Always return valid JSON.",
+        system: "You are an expert podcast topic researcher who analyzes topics and creates structured research plans. Always return valid JSON without any markdown formatting, code fences, or explanations. Respond with only the raw JSON object.",
         messages: [{ role: 'user', content: prompt }]
       });
       
@@ -59,20 +59,43 @@ Format your response as a structured JSON object with the following schema:
         let responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
           ? response.content[0].text 
           : JSON.stringify(response.content[0]);
+          
+        console.log("Original Claude response:", responseText.substring(0, 300));
         
-        // Remove markdown code fences if present
-        if (responseText.includes('```json')) {
-          responseText = responseText.replace(/```json\s*/, '');
-          responseText = responseText.replace(/\s*```\s*$/, '');
+        // Extract JSON from the response using regex to find content between code fences
+        const jsonRegex = /```(?:json)?\s*({[\s\S]*?})\s*```/;
+        const jsonMatch = responseText.match(jsonRegex);
+        
+        if (jsonMatch && jsonMatch[1]) {
+          responseText = jsonMatch[1].trim();
+          console.log("Extracted JSON within code fences:", responseText.substring(0, 100) + "...");
+        } else {
+          // If no code fences found, try to find a JSON object directly
+          const directJsonMatch = responseText.match(/({[\s\S]*})/);
+          if (directJsonMatch && directJsonMatch[1]) {
+            responseText = directJsonMatch[1].trim();
+            console.log("Extracted direct JSON:", responseText.substring(0, 100) + "...");
+          }
         }
-        
-        // Clean up any other potential markdown formatting
-        responseText = responseText.trim();
-        
-        // Log the cleaned response text for debugging
-        console.log("Cleaned response text:", responseText.substring(0, 100) + "...");
-        
-        return JSON.parse(responseText);
+                
+        // As a last resort, try to parse the entire response
+        try {
+          return JSON.parse(responseText);
+        } catch (innerError) {
+          console.error("First JSON parse attempt failed:", innerError);
+          
+          // If the direct parse fails, look for the first { and last }
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          
+          if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+            const possibleJson = responseText.substring(firstBrace, lastBrace + 1);
+            console.log("Attempting with extracted JSON object:", possibleJson.substring(0, 100) + "...");
+            return JSON.parse(possibleJson);
+          }
+          
+          throw innerError;
+        }
       } catch (error) {
         console.error("Failed to parse Claude's topic analysis response as JSON:", error);
         throw new Error("Invalid response format from topic analysis");
