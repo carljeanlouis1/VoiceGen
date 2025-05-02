@@ -107,9 +107,22 @@ Ensure all IDs are unique strings.
       
       try {
         // Handle the structure of the response content
-        const responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
+        let responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
           ? response.content[0].text 
           : JSON.stringify(response.content[0]);
+          
+        // Remove markdown code fences if present
+        if (responseText.includes('```json')) {
+          responseText = responseText.replace(/```json\s*/, '');
+          responseText = responseText.replace(/\s*```\s*$/, '');
+        }
+        
+        // Clean up any other potential markdown formatting
+        responseText = responseText.trim();
+        
+        // Log the cleaned response text for debugging
+        console.log("Cleaned podcast structure response:", responseText.substring(0, 100) + "...");
+          
         const structure = JSON.parse(responseText);
         
         // Ensure IDs are unique if they aren't already

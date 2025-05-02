@@ -56,9 +56,22 @@ Format your response as a structured JSON object with the following schema:
       
       try {
         // Handle the structure of the response content
-        const responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
+        let responseText = typeof response.content[0] === 'object' && 'text' in response.content[0] 
           ? response.content[0].text 
           : JSON.stringify(response.content[0]);
+        
+        // Remove markdown code fences if present
+        if (responseText.includes('```json')) {
+          responseText = responseText.replace(/```json\s*/, '');
+          responseText = responseText.replace(/\s*```\s*$/, '');
+        }
+        
+        // Clean up any other potential markdown formatting
+        responseText = responseText.trim();
+        
+        // Log the cleaned response text for debugging
+        console.log("Cleaned response text:", responseText.substring(0, 100) + "...");
+        
         return JSON.parse(responseText);
       } catch (error) {
         console.error("Failed to parse Claude's topic analysis response as JSON:", error);
