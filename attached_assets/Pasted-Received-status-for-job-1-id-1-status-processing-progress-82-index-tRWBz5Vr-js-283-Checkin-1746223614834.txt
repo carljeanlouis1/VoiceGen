@@ -1,0 +1,59 @@
+Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 82}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Progress updated: 82% -> 96%
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'processing', progress: 96}
+index-tRWBz5Vr.js:283 Checking status for job 1...
+index-tRWBz5Vr.js:283 Received status for job 1: {id: 1, status: 'complete', progress: 100, audioUrl: '/api/audio/afb75601e6cee04e.mp3'}
+index-tRWBz5Vr.js:283 Progress updated: 96% -> 100%
+index-tRWBz5Vr.js:283 Job 1 completed successfully!
+index-tRWBz5Vr.js:283 Clearing interval for completed job 1
+index-tRWBz5Vr.js:283 Audio URL received for job 1, updating UI
+index-tRWBz5Vr.js:283 Setting completed audio: {id: 1, title: 'AI Show', audioUrl: '/api/audio/afb75601e6cee04e.mp3', text: "\n\n\n\nNow that I've gathered comprehensive informati…pyright 2025. All rights reserved.\n\n*[End music]*", voice: 'alloy', …}
+afb75601e6cee04e.mp3:1 
+            
+            
+           GET https://voicegen.replit.app/api/audio/afb75601e6cee04e.mp3 500 (Internal Server Error)Understand this errorAI
+index-tRWBz5Vr.js:243 Initial play blocked, will wait for user interaction
+index-tRWBz5Vr.js:243 
+            
+            
+           HEAD https://voicegen.replit.app/api/audio/afb75601e6cee04e.mp3 net::ERR_ABORTED 404 (Not Found)
+x @ index-tRWBz5Vr.js:243
+(anonymous) @ index-tRWBz5Vr.js:243
+setTimeout
+(anonymous) @ index-tRWBz5Vr.js:243
+Eu @ index-tRWBz5Vr.js:40
+Lo @ index-tRWBz5Vr.js:40
+Hg @ index-tRWBz5Vr.js:40
+Ts @ index-tRWBz5Vr.js:38
+JR @ index-tRWBz5Vr.js:40
+Is @ index-tRWBz5Vr.js:40
+n1 @ index-tRWBz5Vr.js:40
+C @ index-tRWBz5Vr.js:25
+O @ index-tRWBz5Vr.js:25Understand this errorAI
