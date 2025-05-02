@@ -88,6 +88,7 @@ export default function CreatePage() {
   const [podcastMultipart, setPodcastMultipart] = useState(false);
   const [podcastParts, setPodcastParts] = useState(1);
   const [podcastVoice, setPodcastVoice] = useState<typeof AVAILABLE_VOICES[number]>(AVAILABLE_VOICES[0]);
+  const [useEnhancedMode, setUseEnhancedMode] = useState(false); // Enhanced Continuity Architecture flag
   const [podcastScript, setPodcastScript] = useState("");
   const [podcastResearchResults, setPodcastResearchResults] = useState("");
   const [podcastResearchFinished, setPodcastResearchFinished] = useState(false);
@@ -234,6 +235,36 @@ export default function CreatePage() {
     }
   };
 
+  // Mutation for enhanced podcast creation
+  const enhancedPodcastMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/podcast/projects", {
+        method: "POST",
+        data: {
+          topic: podcastTopic,
+          targetDuration: podcastDuration,
+          voice: podcastVoice
+        }
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Podcast Project Created",
+        description: "Your podcast is being generated in the background. You can monitor its progress."
+      });
+      
+      // Set polling for project updates if needed
+      // TODO: Implement polling for project status updates
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create podcast: ${error.message || "Unknown error"}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
   // Mutation for podcast research and script generation
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
@@ -966,6 +997,21 @@ export default function CreatePage() {
                 )}
               </div>
               
+              {/* Enhanced mode */}
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="enhanced-mode-toggle">Enhanced Architecture</Label>
+                  <Switch
+                    id="enhanced-mode-toggle"
+                    checked={useEnhancedMode}
+                    onCheckedChange={setUseEnhancedMode}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Use the Enhanced Continuity Architecture for better handling of long podcasts. This creates a seamless podcast experience with better narrative flow.
+                </p>
+              </div>
+
               {/* Step 4: Voice Selection */}
               <div className="space-y-2">
                 <Label>Voice Selection</Label>
