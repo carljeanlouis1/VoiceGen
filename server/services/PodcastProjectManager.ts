@@ -225,9 +225,9 @@ export class PodcastProjectManager {
         project,
         chunkPlan,
         previousContext: currentContext,
-        isFirstChunk: index === 0,
-        isLastChunk: index === chunkingStrategy.length - 1,
-        relativePosition: index / chunkingStrategy.length
+        isFirstChunk: i === 0,
+        isLastChunk: i === chunkingStrategy.length - 1,
+        relativePosition: i / chunkingStrategy.length
       });
       
       contentChunks.push(chunk);
@@ -237,7 +237,7 @@ export class PodcastProjectManager {
       currentContext = chunk.content.slice(-OVERLAP_SIZE);
       
       // Store overlap information
-      if (index < chunkingStrategy.length - 1) {
+      if (i < chunkingStrategy.length - 1) {
         chunk.overlapEnd = currentContext;
       }
       
