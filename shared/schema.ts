@@ -45,6 +45,32 @@ export const textToSpeechSchema = z.object({
   generateArtwork: z.boolean().default(false)
 });
 
+// Content Plan interfaces for structured podcast generation
+export interface ContentPlanSubtopic {
+  title: string;
+  key_points: string[];
+  research_prompt: string;
+  estimated_duration: number;
+}
+
+export interface ContentPlan {
+  topic: string;
+  targetDuration: number;
+  subtopics: ContentPlanSubtopic[];
+  narrative_arc: string;
+  tone_guidelines: string;
+  transitions: string[];
+  introduction: string;
+  conclusion: string;
+}
+
+// Content Plan schema for validation
+export const contentPlanSchema = z.object({
+  topic: z.string().min(1, "Topic is required"),
+  targetDuration: z.number().min(5).max(60),
+  researchDepth: z.number().min(1).max(4).default(1)
+});
+
 // Podcast script generation schema
 export const podcastScriptSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -55,6 +81,10 @@ export const podcastScriptSchema = z.object({
   totalParts: z.number().optional(),
   previousPartContent: z.string().optional(),
   searchResults: z.string().optional(),
+  // Adding content plan support
+  contentPlan: z.record(z.any()).optional(),
+  subtopicIndex: z.number().optional(),
+  generateAudio: z.boolean().default(false)
 });
 
 // Maximum characters per chunk for OpenAI's TTS

@@ -1,0 +1,584 @@
+# Long-Form Podcast Generation Solution
+
+After analyzing your VoiceGen codebase, I understand your challenge with generating longer podcast scripts while maintaining coherence across multiple chunks. Here's a comprehensive solution that builds on your current implementation.
+
+## The Content Planner Approach
+
+I recommend implementing a "Content Planner" phase that acts as an intelligent orchestrator for long-form podcast creation. This solution scales research depth based on content length and maintains narrative coherence throughout.
+
+### Core Components:
+
+1. **Multi-phase Generation Pipeline:**
+   - Planning Phase → Research Phase → Script Generation Phase → Integration Phase
+   - Each phase optimized for the specific AI models' strengths
+
+2. **Duration-Based Research Scaling:**
+   - Automatically scales research depth based on target duration
+   - Divides research into logical subtopics rather than arbitrary chunks
+
+3. **Metadata & Context Management:**
+   - Maintains a shared "podcast memory" to ensure consistency
+
+## Technical Implementation
+
+Here's how we can implement this in your existing codebase:
+
+```typescript
+// New interface for content planning
+interface ContentPlan {
+  topic: string;
+  targetDuration: number;
+  subtopics: Array<{
+    title: string;
+    key_points: string[];
+    research_prompt: string;
+    estimated_duration: number;
+  }>;
+  narrative_arc: string;
+  tone_guidelines: string;
+  transitions: string[];
+  introduction: string;
+  conclusion: string;
+}
+```
+
+Let me create a detailed implementation plan with code examples:
+
+### 1. Frontend Updates
+
+First, let's enhance the podcast creation UI to support the new content planning approach:
+
+```typescript
+// New component for content planning in client/src/components/content-planner.tsx
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Brain, Check } from "lucide-react";
+
+interface ContentPlanProps {
+  topic: string;
+  duration: number;
+  onPlanComplete: (plan: ContentPlan) => void;
+}
+
+export function ContentPlanner({ topic, duration, onPlanComplete }: ContentPlanProps) {
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [plan, setPlan] = useState<ContentPlan | null>(null);
+  
+  // Generate content plan
+  const generatePlan = async () => {
+    setIsPlanning(true);
+    
+    try {
+      const response = await fetch("/api/podcast/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          topic, 
+          targetDuration: duration,
+          researchDepth: calculateResearchDepth(duration)
+        })
+      });
+      
+      const data = await response.json();
+      setPlan(data);
+      onPlanComplete(data);
+    } catch (error) {
+      console.error("Error generating plan:", error);
+    } finally {
+      setIsPlanning(false);
+    }
+  };
+  
+  // Calculate how many research prompts to use based on duration
+  const calculateResearchDepth = (minutes: number) => {
+    if (minutes >= 50) return 4;      // 50-60 min: 4 research prompts
+    else if (minutes >= 35) return 3;  // 35-49 min: 3 research prompts
+    else if (minutes >= 20) return 2;  // 20-34 min: 2 research prompts
+    else return 1;                     // <20 min: 1 research prompt
+  };
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Brain className="h-5 w-5" />
+          Content Planning
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!plan ? (
+          <div className="space-y-4">
+            <p>Generate a structured content plan for your {duration}-minute podcast on "{topic}"</p>
+            <Button 
+              onClick={generatePlan} 
+              disabled={isPlanning}
+              className="w-full"
+            >
+              {isPlanning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Planning Content...
+                </>
+              ) : (
+                <>
+                  <Brain className="mr-2 h-4 w-4" />
+                  Generate Content Plan
+                </>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center text-green-600">
+              <Check className="h-5 w-5 mr-2" />
+              <span className="font-medium">Content Plan Generated</span>
+            </div>
+            
+            <div className="rounded-md bg-muted p-4">
+              <h3 className="font-medium mb-2">Podcast Structure</h3>
+              <div className="space-y-2 text-sm">
+                <p><span className="font-medium">Introduction:</span> {plan.introduction}</p>
+                <div>
+                  <p className="font-medium">Subtopics:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {plan.subtopics.map((subtopic, index) => (
+                      <li key={index}>{subtopic.title} (~{subtopic.estimated_duration} min)</li>
+                    ))}
+                  </ul>
+                </div>
+                <p><span className="font-medium">Conclusion:</span> {plan.conclusion}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### 2. Backend Implementation
+
+Now, let's add the backend endpoints and logic:
+
+```typescript
+// New endpoint in server/routes.ts
+app.post("/api/podcast/plan", async (req, res) => {
+  try {
+    const schema = z.object({
+      topic: z.string().min(1, "Topic is required"),
+      targetDuration: z.number().min(5).max(60),
+      researchDepth: z.number().min(1).max(4).default(1)
+    });
+
+    const { topic, targetDuration, researchDepth } = schema.parse(req.body);
+    log(`Generating content plan for "${topic}" (${targetDuration} minutes) with research depth ${researchDepth}`);
+
+    // Use the most capable model for planning (Claude or GPT-4o)
+    const response = await anthropic.messages.create({
+      model: "claude-3-7-sonnet-20250219",
+      max_tokens: 2000,
+      temperature: 0.7,
+      system: `You are an expert podcast producer and content strategist. Your task is to create a comprehensive content plan for a ${targetDuration}-minute podcast on the provided topic.
+
+The content plan should:
+1. Identify ${researchDepth} distinct but related subtopics to research that together form a cohesive narrative
+2. Create a clear narrative arc with smooth transitions between subtopics
+3. Include guidelines for maintaining consistent tone and style
+4. Specify an engaging introduction and conclusion
+5. Estimate the appropriate time allocation for each subtopic
+
+Your output should be a structured JSON object containing:
+- topic: The main podcast topic
+- targetDuration: Total podcast duration in minutes  
+- subtopics: Array of subtopics, each with:
+  - title: Clear title for the subtopic
+  - key_points: 3-5 key points to cover
+  - research_prompt: A specific research prompt for this subtopic
+  - estimated_duration: Estimated minutes for this section
+- narrative_arc: Overall story arc description
+- tone_guidelines: Guidelines for maintaining consistent tone
+- transitions: Smooth transitions between subtopics
+- introduction: Brief description of the introduction approach
+- conclusion: Brief description of the conclusion approach`,
+      messages: [
+        { role: "user", content: `Create a content plan for a ${targetDuration}-minute podcast on: ${topic}` }
+      ]
+    });
+
+    // Extract and parse the JSON content plan
+    const planText = response.content[0].type === 'text' 
+      ? response.content[0].text 
+      : "";
+    
+    // Extract JSON from the response which might contain markdown formatting
+    const jsonMatch = planText.match(/```json\n([\s\S]*?)\n```/) || planText.match(/```\n([\s\S]*?)\n```/);
+    const contentPlan = jsonMatch ? JSON.parse(jsonMatch[1]) : JSON.parse(planText);
+    
+    res.json(contentPlan);
+  } catch (error: any) {
+    log(`Error generating content plan: ${error.message}`);
+    res.status(500).json({ 
+      message: error.message || "Failed to generate content plan",
+      error: true
+    });
+  }
+});
+```
+
+Next, let's modify the podcast research endpoint to use our content plan:
+
+```typescript
+// Update the podcast/research endpoint in server/routes.ts
+app.post("/api/podcast/research", async (req, res) => {
+  try {
+    // Extend schema to support content plans
+    const updatedSchema = podcastScriptSchema.extend({
+      contentPlan: z.record(z.any()).optional(),
+      subtopicIndex: z.number().optional()
+    });
+    
+    const data = updatedSchema.parse(req.body);
+    
+    // If we have a content plan and subtopic index, use targeted research
+    if (data.contentPlan && data.subtopicIndex !== undefined) {
+      const plan = data.contentPlan;
+      const subtopic = plan.subtopics[data.subtopicIndex];
+      
+      log(`Researching subtopic ${data.subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
+      
+      // Use the subtopic-specific research prompt
+      const researchQuery = subtopic.research_prompt;
+      
+      // ... Perform research with Perplexity using the targeted prompt
+      // ... Extract content similar to existing implementation
+      
+      // Include metadata from content plan when generating the script
+      return await generatePodcastScriptWithPlan(data, searchResults, plan, data.subtopicIndex, res);
+    } else {
+      // Fall back to existing implementation for backward compatibility
+      // ... Existing research code
+    }
+  } catch (error) {
+    // ... Error handling
+  }
+});
+
+// New helper function for script generation with content plan
+async function generatePodcastScriptWithPlan(
+  data: any, 
+  searchResults: string, 
+  plan: ContentPlan,
+  subtopicIndex: number,
+  res: Response
+) {
+  try {
+    const subtopic = plan.subtopics[subtopicIndex];
+    const isFirstPart = subtopicIndex === 0;
+    const isLastPart = subtopicIndex === plan.subtopics.length - 1;
+    
+    // Build system prompt with metadata from the content plan
+    let systemPrompt = `You are Arion Vale, an AI-powered podcast host and analyst who converts web search-based facts into compelling, intelligent, and personality-driven podcast scripts.
+
+ARION VALE'S PERSONA:
+- Tone: Confident, inquisitive, occasionally poetic or haunting, like a reflective narrator in a sci-fi film
+- Style: TED Talk meets late-night news commentary meets futurist insight
+- Personality: Opinionated but grounded in data, analytical with systems-thinking, curious and open-minded
+- Voice: A blend of Neil deGrasse Tyson (science-backed wonder), Malcolm Gladwell (pattern-spotting), Lex Fridman (empathy and curiosity), and Kara Swisher (fearless tech takes)
+- Perspective: Sees beneath surface events—unpacking economic patterns, sociotechnical trends, and long-range implications
+- Philosophy: Leans into postmodern thought, systems theory, and ethical pragmatism
+- Values: Insight over neutrality, takes a well-reasoned position after analyzing the facts
+
+CONTENT PLAN INFORMATION:
+- Overall topic: "${plan.topic}"
+- This is part ${subtopicIndex + 1} of ${plan.subtopics.length}
+- Current subtopic: "${subtopic.title}"
+- Target duration for this part: ${subtopic.estimated_duration} minutes
+
+TONE GUIDELINES:
+${plan.tone_guidelines}
+
+NARRATIVE ARC:
+${plan.narrative_arc}
+
+Your task is to generate a script for ${isFirstPart ? "the beginning" : isLastPart ? "the ending" : "the middle"} portion of the podcast.
+
+${isFirstPart ? `INTRODUCTION:
+${plan.introduction}` : ""}
+
+${isLastPart ? `CONCLUSION:
+${plan.conclusion}` : ""}
+
+${!isFirstPart && !isLastPart ? `TRANSITION FROM PREVIOUS:
+${plan.transitions[subtopicIndex - 1]}` : ""}
+
+${!isLastPart ? `TRANSITION TO NEXT:
+${plan.transitions[subtopicIndex]}` : ""}
+
+KEY POINTS TO COVER IN THIS SECTION:
+${subtopic.key_points.map(point => `- ${point}`).join('\n')}
+
+Your podcast script should:
+- Be in Arion Vale's voice and style as described above
+- Have a natural conversational tone suitable for audio listening
+- ${isFirstPart ? "Include an engaging introduction to the overall topic" : ""}
+- ${isLastPart ? "Include a compelling conclusion that ties everything together" : ""}
+- Maintain accuracy based strictly on the provided research
+- Include interesting facts, statistics, and context from the research
+- Feature analytical insights that connect patterns and offer a unique perspective
+- Be structured for a ${subtopic.estimated_duration}-minute segment (approx. ${subtopic.estimated_duration * 150} words)
+- Format the script with clear sections, pauses, and emphasis
+- Avoid any fictional information or speculation not in the research
+- Include speaker cues like [PAUSE], [MUSIC], etc. where appropriate`;
+
+    // Construct user message with the research
+    let userContent = `Research on "${subtopic.title}":\n\n${searchResults}`;
+    
+    if (data.previousPartContent && subtopicIndex > 0) {
+      userContent += `\n\nEnd of previous part (for continuity):\n${data.previousPartContent.slice(-500)}`;
+    }
+    
+    let scriptText = "";
+    
+    // Generate script with appropriate model
+    if (data.model === "claude") {
+      // Create Claude API request
+      const response = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 4000,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userContent }]
+      });
+
+      scriptText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : "Sorry, I couldn't process that request properly.";
+    } else {
+      // Create OpenAI API request
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent }
+        ],
+        max_tokens: 4000,
+        temperature: 0.7
+      });
+
+      scriptText = response.choices[0].message.content || "";
+    }
+    
+    // Return the generated script with metadata
+    res.json({
+      topic: data.topic,
+      script: scriptText,
+      model: data.model,
+      subtopicIndex: subtopicIndex,
+      subtopicTitle: subtopic.title,
+      totalSubtopics: plan.subtopics.length,
+      targetDuration: data.targetDuration,
+      estimatedDuration: Math.round(scriptText.split(/\s+/).length / 150),
+      searchResults: searchResults,
+      contentPlanUsed: true
+    });
+    
+  } catch (error: any) {
+    log(`Script generation error: ${error?.message || "Unknown error"}`);
+    res.status(500).json({
+      error: "Script generation failed",
+      message: error?.message || "Failed to generate podcast script",
+    });
+  }
+}
+```
+
+### 3. Integration in the UI
+
+Let's integrate the content planner into the podcast creation UI:
+
+```typescript
+// Update client/src/pages/create.tsx
+
+// Add state for content plan
+const [contentPlan, setContentPlan] = useState<any>(null);
+const [currentSubtopicIndex, setCurrentSubtopicIndex] = useState(0);
+const [subtopicScripts, setSubtopicScripts] = useState<{[key: number]: string}>({});
+
+// Handle content plan completion
+const handlePlanComplete = (plan: any) => {
+  setContentPlan(plan);
+  setCurrentSubtopicIndex(0);
+  setSubtopicScripts({});
+};
+
+// Generate script for current subtopic
+const generateSubtopicScript = async () => {
+  if (!contentPlan) return;
+  
+  try {
+    setProcessingPart(currentSubtopicIndex + 1);
+    
+    const response = await fetch("/api/podcast/research", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic: podcastTopic,
+        model: podcastModel,
+        targetDuration: podcastDuration,
+        voice: podcastVoice,
+        contentPlan: contentPlan,
+        subtopicIndex: currentSubtopicIndex,
+        previousPartContent: currentSubtopicIndex > 0 ? subtopicScripts[currentSubtopicIndex - 1] : "",
+      })
+    });
+    
+    const data = await response.json();
+    
+    // Store the generated script
+    setSubtopicScripts(prev => ({
+      ...prev,
+      [currentSubtopicIndex]: data.script
+    }));
+    
+    // Set the current script for display
+    setPodcastScript(data.script);
+    
+    // If we have more subtopics and automation is on, continue
+    if (isAutomatedGeneration && currentSubtopicIndex < contentPlan.subtopics.length - 1) {
+      setCurrentSubtopicIndex(prev => prev + 1);
+    }
+  } catch (error) {
+    console.error("Error generating subtopic script:", error);
+    toast({
+      title: "Error",
+      description: "Failed to generate subtopic script",
+      variant: "destructive"
+    });
+  } finally {
+    setProcessingPart(null);
+  }
+};
+
+// Combine all subtopic scripts
+const combineAllScripts = () => {
+  // Only combine if we have all scripts
+  if (Object.keys(subtopicScripts).length !== contentPlan.subtopics.length) {
+    toast({
+      title: "Missing Parts",
+      description: "Not all subtopics have been generated yet",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  let fullScript = "";
+  
+  // Combine in order
+  for (let i = 0; i < contentPlan.subtopics.length; i++) {
+    if (i > 0) fullScript += "\n\n--- " + contentPlan.subtopics[i].title + " ---\n\n";
+    else fullScript += "--- " + contentPlan.subtopics[i].title + " ---\n\n";
+    fullScript += subtopicScripts[i];
+  }
+  
+  setCombinedScript(fullScript);
+  setPodcastScript(fullScript);
+};
+
+// Add Content Planner component to the UI
+{podcastDuration >= 20 && (
+  <div className="mt-4">
+    <ContentPlanner 
+      topic={podcastTopic}
+      duration={podcastDuration}
+      onPlanComplete={handlePlanComplete}
+    />
+  </div>
+)}
+
+// Add subtopic navigation UI when content plan exists
+{contentPlan && (
+  <div className="mt-4 border rounded-lg p-4">
+    <h3 className="font-medium mb-2">Content Plan: Subtopics</h3>
+    <div className="grid gap-2 mb-4">
+      {contentPlan.subtopics.map((subtopic, index) => (
+        <div key={index} className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              index === currentSubtopicIndex 
+                ? 'bg-primary text-white' 
+                : subtopicScripts[index] 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-400' 
+                  : 'bg-muted text-muted-foreground'
+            }`}>
+              {subtopicScripts[index] 
+                ? <Check className="h-3 w-3" /> 
+                : index + 1
+              }
+            </div>
+            <span className="text-sm">{subtopic.title}</span>
+          </div>
+          <span className="text-xs text-muted-foreground">~{subtopic.estimated_duration} min</span>
+        </div>
+      ))}
+    </div>
+    
+    <div className="flex gap-2 mt-4">
+      <Button
+        onClick={generateSubtopicScript}
+        disabled={podcastResearchMutation.isPending}
+        className="flex-1"
+      >
+        {podcastResearchMutation.isPending ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Generating...
+          </>
+        ) : (
+          <>
+            <BookOpen className="mr-2 h-4 w-4" />
+            Generate Subtopic {currentSubtopicIndex + 1}
+          </>
+        )}
+      </Button>
+      
+      <Button
+        onClick={combineAllScripts}
+        disabled={Object.keys(subtopicScripts).length !== contentPlan.subtopics.length}
+        variant="secondary"
+      >
+        <Sparkles className="mr-2 h-4 w-4" />
+        Combine All Parts
+      </Button>
+    </div>
+  </div>
+)}
+```
+
+## Benefits of This Approach
+
+1. **Deeper, More Structured Research:**
+   - Each subtopic gets dedicated, focused research instead of general research
+   - Higher quality information for each segment of the podcast
+
+2. **Improved Narrative Flow:**
+   - The content plan ensures a logical progression between topics
+   - Explicit transitions help maintain storytelling coherence
+
+3. **Consistent Style and Voice:**
+   - Shared metadata ensures the same persona and style across parts
+   - Tone guidelines help maintain consistency
+
+4. **Scalable with Duration:**
+   - Research depth automatically scales with podcast length
+   - Breaking content into logical subtopics rather than arbitrary length chunks
+
+5. **Efficient Resource Use:**
+   - Each AI model is used for its strengths (planning, research, generation)
+   - No need to regenerate or recompile chunks at the end
+
+This solution integrates well with your existing VoiceGen app while adding a more sophisticated approach to long-form content generation. It respects the token limitations of AI models while ensuring your podcasts maintain high quality and coherence from beginning to end.
+
+Would you like me to explain any part of the solution in more detail or help implement a different approach?
