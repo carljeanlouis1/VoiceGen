@@ -616,6 +616,10 @@ export default function CreatePage() {
     setPreviousPartContent("");
     setGeneratedAudioUrl(null);
     setGeneratedAudioTitle("");
+    
+    // Reset content planning states
+    setContentPlan(null);
+    setCurrentSubtopicIndex(null);
   };
 
   return (
