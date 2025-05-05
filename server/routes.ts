@@ -1035,6 +1035,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
+
+  // Endpoint for podcast content planning
+  app.post("/api/podcast/plan", async (req, res) => {
+    try {
+      const { topic, targetDuration, researchDepth } = contentPlanSchema.parse(req.body);
+      log(`Generating content plan for "${topic}" (${targetDuration} minutes) with research depth ${researchDepth}`);
+
+      // Use Claude 3.7 for planning - it has better structure understanding
+      const response = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 2000,
+        temperature: 0.7,
+        system: `You are an expert podcast producer and content strategist. Create a comprehensive content plan for a ${targetDuration}-minute podcast on the provided topic.
+
+The content plan should:
+1. Identify ${researchDepth} distinct but related subtopics that form a cohesive narrative
+2. Create a clear narrative arc with smooth transitions between subtopics
+3. Include guidelines for maintaining consistent tone and style
+4. Specify an engaging introduction and conclusion
+5. Estimate the appropriate time allocation for each subtopic
+
+Your output should be a structured JSON object containing:
+- topic: The main podcast topic
+- targetDuration: Total podcast duration in minutes  
+- subtopics: Array of subtopics, each with:
+  - title: Clear title for the subtopic
+  - key_points: 3-5 key points to cover
+  - research_prompt: A specific research prompt for this subtopic
+  - estimated_duration: Estimated minutes for this section
+- narrative_arc: Overall story arc description
+- tone_guidelines: Guidelines for maintaining consistent tone
+- transitions: Array of smooth transitions between subtopics
+- introduction: Brief description of the introduction approach
+- conclusion: Brief description of the conclusion approach`,
+        messages: [
+          { role: "user", content: `Create a content plan for a ${targetDuration}-minute podcast on: ${topic}` }
+        ]
+      });
+
+      const planText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : "";
+      
+      // Extract JSON from the response (handle markdown code blocks)
+      const jsonMatch = planText.match(/```json\n([\s\S]*?)\n```/) || planText.match(/```\n([\s\S]*?)\n```/);
+      let contentPlan;
+      
+      try {
+        contentPlan = jsonMatch ? JSON.parse(jsonMatch[1]) : JSON.parse(planText);
+      } catch (parseError) {
+        // If JSON parsing fails, extract structured content manually
+        log(`JSON parsing failed: ${parseError.message}. Attempting to extract structured content.`);
+        contentPlan = extractStructuredContent(planText);
+      }
+      
+      res.json(contentPlan);
+    } catch (error: any) {
+      log(`Error generating content plan: ${error.message}`);
+      res.status(500).json({ 
+        message: error.message || "Failed to generate content plan",
+        error: true
+      });
+    }
+  });
+  
+  // Helper function to extract structured content if JSON parsing fails
+  function extractStructuredContent(text: string): ContentPlan {
+    // Default structure
+    const plan: ContentPlan = {
+      topic: "",
+      targetDuration: 0,
+      subtopics: [],
+      narrative_arc: "",
+      tone_guidelines: "",
+      transitions: [],
+      introduction: "",
+      conclusion: ""
+    };
+
+    // Extract topic and duration from text
+    const topicMatch = text.match(/topic[:\s]+["']?([^"'\n]+)["']?/i);
+    if (topicMatch) plan.topic = topicMatch[1].trim();
+    
+    const durationMatch = text.match(/target\s*duration[:\s]+(\d+)/i);
+    if (durationMatch) plan.targetDuration = parseInt(durationMatch[1]);
+    
+    // Extract subtopics
+    const subtopicsSection = text.split(/subtopics[:\s]+/i)[1]?.split(/narrative_arc|tone_guidelines/i)[0];
+    if (subtopicsSection) {
+      const subtopicMatches = subtopicsSection.match(/[0-9]+\.\s+(.+?)(?=[0-9]+\.\s+|$)/gs);
+      if (subtopicMatches) {
+        plan.subtopics = subtopicMatches.map(match => {
+          const title = match.match(/[0-9]+\.\s+(.+?)[\n\r]/)?.[1]?.trim() || "Untitled Subtopic";
+          const keyPointsText = match.match(/key\s*points[:\s]+([\s\S]+?)(?=research|estimated|$)/i)?.[1] || "";
+          const keyPoints = keyPointsText.split(/[-•*]\s+/).filter(Boolean).map(p => p.trim());
+          
+          const researchPrompt = match.match(/research\s*prompt[:\s]+(.+?)(?=estimated|$)/i)?.[1]?.trim() || "";
+          const estimatedDuration = parseInt(match.match(/estimated\s*duration[:\s]+(\d+)/i)?.[1] || "5");
+          
+          return {
+            title,
+            key_points: keyPoints,
+            research_prompt: researchPrompt,
+            estimated_duration: estimatedDuration
+          };
+        });
+      }
+    }
+    
+    // Extract other elements
+    const narrativeMatch = text.match(/narrative\s*arc[:\s]+(.+?)(?=tone|transitions|introduction|conclusion|$)/is);
+    if (narrativeMatch) plan.narrative_arc = narrativeMatch[1].trim();
+    
+    const toneMatch = text.match(/tone\s*guidelines[:\s]+(.+?)(?=transitions|narrative|introduction|conclusion|$)/is);
+    if (toneMatch) plan.tone_guidelines = toneMatch[1].trim();
+    
+    const introMatch = text.match(/introduction[:\s]+(.+?)(?=transitions|narrative|tone|conclusion|$)/is);
+    if (introMatch) plan.introduction = introMatch[1].trim();
+    
+    const conclusionMatch = text.match(/conclusion[:\s]+(.+?)(?=transitions|narrative|tone|introduction|$)/is);
+    if (conclusionMatch) plan.conclusion = conclusionMatch[1].trim();
+    
+    // Extract transitions
+    const transitionsText = text.match(/transitions[:\s]+([\s\S]+?)(?=introduction|conclusion|$)/i)?.[1] || "";
+    plan.transitions = transitionsText.split(/[0-9]+\.\s+/).filter(Boolean).map(t => t.trim());
+    
+    return plan;
+  }
   
   // Endpoint for podcast script research and generation
   app.post("/api/podcast/research", async (req, res) => {
@@ -1042,8 +1170,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = podcastScriptSchema.parse(req.body);
       log(`Starting podcast research for topic: "${data.topic}"`);
       
-      // First, perform deep research on the topic using Perplexity Sonar Pro
-      if (!data.searchResults) {
+      // If we have a content plan and subtopic index, use targeted research
+      if (data.contentPlan && data.subtopicIndex !== undefined) {
+        const plan = data.contentPlan;
+        const subtopic = plan.subtopics[data.subtopicIndex];
+        
+        log(`Researching subtopic ${data.subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
+        
+        try {
+          // Check if Perplexity API key is available
+          if (!process.env.PERPLEXITY_API_KEY) {
+            throw new Error("PERPLEXITY_API_KEY is required for podcast research");
+          }
+
+          const apiKey = process.env.PERPLEXITY_API_KEY;
+          
+          // Use the subtopic-specific research prompt
+          const researchQuery = subtopic.research_prompt || `Comprehensive research on ${subtopic.title} for ${data.topic}`;
+          
+          // Create request body for Perplexity API
+          const requestBody = {
+            model: "sonar-pro", 
+            messages: [
+              {
+                role: "system",
+                content: "You are a comprehensive research assistant. Provide detailed, thorough, factual information from reliable sources. Include relevant data, expert opinions, statistics, and historical context. Focus on accuracy and depth of information."
+              },
+              {
+                role: "user",
+                content: researchQuery
+              }
+            ],
+            max_tokens: 4000,
+            temperature: 0.2,
+            top_p: 0.9,
+            return_images: false,
+            return_related_questions: true,
+            search_recency_filter: "month",
+            top_k: 0,
+            stream: false,
+            presence_penalty: 0,
+            frequency_penalty: 1,
+            web_search_options: { 
+              search_context_size: "high",
+              search_depth: "deep"
+            }
+          };
+        
+          log('Sending targeted research request to Perplexity API for subtopic...');
+          const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+            method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+          });
+          
+          // Check for API errors
+          if (!perplexityResponse.ok) {
+            const errorText = await perplexityResponse.text();
+            log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
+            throw new Error(`Failed to get research results: ${perplexityResponse.status}`);
+          }
+          
+          // Parse API response
+          const researchData = await perplexityResponse.json();
+          
+          // Extract content
+          let searchResults = "";
+          let citations: string[] = [];
+          
+          if (researchData.choices && researchData.choices.length > 0 && researchData.choices[0].message) {
+            searchResults = researchData.choices[0].message.content || "";
+            log(`Research data received (${searchResults.length} chars)`);
+          } else {
+            throw new Error("Unexpected Perplexity API response format");
+          }
+          
+          // Extract citations
+          if (researchData.citations && Array.isArray(researchData.citations)) {
+            citations = researchData.citations;
+            log(`Found ${citations.length} citations`);
+            
+            // Add citations to research results
+            searchResults += "\n\nSources:\n" + citations.join("\n");
+          }
+          
+          // Now proceed to script generation with the research results using the content plan
+          return await generatePodcastScriptWithPlan(data, searchResults, plan, data.subtopicIndex, res);
+          
+        } catch (error: any) {
+          log(`Research error: ${error?.message || "Unknown error"}`);
+          res.status(500).json({
+            error: "Research failed",
+            message: error?.message || "Failed to complete podcast research",
+          });
+        }
+      }
+      // Fall back to existing implementation for regular podcast generation
+      else if (!data.searchResults) {
         try {
           // Check if Perplexity API key is available
           if (!process.env.PERPLEXITY_API_KEY) {
