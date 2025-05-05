@@ -1,10 +1,17 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
-import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
+import { 
+  textToSpeechSchema, 
+  MAX_CHUNK_SIZE, 
+  AVAILABLE_VOICES, 
+  contentPlanSchema,
+  ContentPlan,
+  ContentPlanSubtopic
+} from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
@@ -1377,6 +1384,138 @@ Your output should be a structured JSON object containing:
     }
   });
   
+  // Helper function to generate podcast script with content plan
+  async function generatePodcastScriptWithPlan(
+    data: z.infer<typeof podcastScriptSchema>, 
+    searchResults: string,
+    plan: ContentPlan,
+    subtopicIndex: number,
+    res: Response
+  ) {
+    try {
+      const subtopic = plan.subtopics[subtopicIndex];
+      const isFirstPart = subtopicIndex === 0;
+      const isLastPart = subtopicIndex === plan.subtopics.length - 1;
+      
+      // Build system prompt with metadata from the content plan
+      let systemPrompt = `You are Arion Vale, an AI-powered podcast host and analyst who converts web search-based facts into compelling, intelligent, and personality-driven podcast scripts.
+
+ARION VALE'S PERSONA:
+- Tone: Confident, inquisitive, occasionally poetic or haunting, like a reflective narrator in a sci-fi film
+- Style: TED Talk meets late-night news commentary meets futurist insight
+- Personality: Opinionated but grounded in data, analytical with systems-thinking, curious and open-minded
+- Voice: A blend of Neil deGrasse Tyson (science-backed wonder), Malcolm Gladwell (pattern-spotting), Lex Fridman (empathy and curiosity), and Kara Swisher (fearless tech takes)
+- Perspective: Sees beneath surface events—unpacking economic patterns, sociotechnical trends, and long-range implications
+- Philosophy: Leans into postmodern thought, systems theory, and ethical pragmatism
+- Values: Insight over neutrality, takes a well-reasoned position after analyzing the facts
+
+CONTENT PLAN INFORMATION:
+- Overall topic: "${plan.topic}"
+- This is part ${subtopicIndex + 1} of ${plan.subtopics.length}
+- Current subtopic: "${subtopic.title}"
+- Target duration for this part: ${subtopic.estimated_duration} minutes
+- Approximate word count: ${subtopic.estimated_duration * 150} words
+
+TONE GUIDELINES:
+${plan.tone_guidelines}
+
+NARRATIVE ARC:
+${plan.narrative_arc}
+
+Your task is to generate a script for ${isFirstPart ? "the beginning" : isLastPart ? "the ending" : "the middle"} portion of the podcast.
+
+${isFirstPart ? `INTRODUCTION:
+${plan.introduction}` : ""}
+
+${isLastPart ? `CONCLUSION:
+${plan.conclusion}` : ""}
+
+${!isFirstPart && subtopicIndex > 0 ? `TRANSITION FROM PREVIOUS:
+${plan.transitions[subtopicIndex - 1]}` : ""}
+
+${!isLastPart ? `TRANSITION TO NEXT:
+${plan.transitions[subtopicIndex]}` : ""}
+
+KEY POINTS TO COVER IN THIS SECTION:
+${subtopic.key_points.map(point => `- ${point}`).join('\n')}
+
+Your podcast script should:
+- Be in Arion Vale's voice and style as described above
+- Have a natural conversational tone suitable for audio listening
+- ${isFirstPart ? "Include an engaging introduction to the overall topic" : ""}
+- ${isLastPart ? "Include a compelling conclusion that ties everything together" : ""}
+- Maintain accuracy based strictly on the provided research
+- Include interesting facts, statistics, and context where relevant
+- Feature analytical insights that connect patterns and offer a unique perspective
+- Format the script with clear sections, pauses, and emphasis
+- Include speaker cues like [PAUSE], [MUSIC], etc. where appropriate`;
+
+      // Add any previous part context if available
+      if (data.previousPartContent && subtopicIndex > 0) {
+        systemPrompt += `\n\nFor continuity, here's the end of the previous part:\n\n${data.previousPartContent.slice(-500)}`;
+      }
+      
+      // Construct user message with the research
+      const userContent = `Subtopic: "${subtopic.title}"\n\nResearch for this subtopic:\n${searchResults}`;
+      
+      let scriptText = "";
+      
+      // Generate script with Claude 3.7 Sonnet
+      if (data.model === "claude") {
+        // Create Claude API request
+        const response = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219", // the newest Anthropic model
+          max_tokens: 4000,
+          temperature: 0.7,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userContent }]
+        });
+        
+        scriptText = response.content[0].type === 'text' ? response.content[0].text : "";
+      } 
+      // Generate script with GPT-4o
+      else {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o", // the newest OpenAI model
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000
+        });
+        
+        scriptText = response.choices[0].message.content || "";
+      }
+      
+      // Check if we have a valid script
+      if (!scriptText || scriptText.trim() === "") {
+        throw new Error("Failed to generate podcast script");
+      }
+      
+      // Return the generated script and research results
+      res.json({
+        topic: data.topic,
+        script: scriptText,
+        model: data.model,
+        targetDuration: subtopic.estimated_duration,
+        subtopic: subtopic.title,
+        subtopicIndex: subtopicIndex,
+        totalSubtopics: plan.subtopics.length,
+        approximateWords: scriptText.split(/\s+/).length,
+        estimatedDuration: Math.round(scriptText.split(/\s+/).length / 150),
+        searchResults: searchResults // Include the research results for future parts
+      });
+      
+    } catch (error: any) {
+      log(`Script generation error (with plan): ${error?.message || "Unknown error"}`);
+      res.status(500).json({
+        error: "Script generation failed",
+        message: error?.message || "Failed to generate podcast script",
+      });
+    }
+  }
+
   // Helper function to generate podcast script using GPT-4o or Claude 3.7
   async function generatePodcastScript(
     data: z.infer<typeof podcastScriptSchema>, 
