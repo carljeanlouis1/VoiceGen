@@ -1174,9 +1174,13 @@ Your output should be a structured JSON object containing:
   // Endpoint specifically for researching and generating content for individual subtopics
   app.post("/api/podcast/subtopic-research", async (req, res) => {
     try {
+      log(`Received subtopic research request: ${JSON.stringify(req.body, null, 2).substring(0, 200)}...`);
       const data = podcastScriptSchema.parse(req.body);
       
+      log(`Parsed data - contentPlan: ${data.contentPlan ? 'present' : 'missing'}, subtopicIndex: ${data.subtopicIndex}`);
+      
       if (!data.contentPlan || data.subtopicIndex === undefined) {
+        log(`Missing required content plan or subtopic index in request`);
         return res.status(400).json({
           error: "Missing required data",
           message: "Content plan and subtopic index are required"
