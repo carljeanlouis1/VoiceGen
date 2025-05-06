@@ -1185,26 +1185,41 @@ Your output should be a structured JSON object containing:
         });
       }
       
-      // Then parse with schema
-      const data = podcastScriptSchema.parse(req.body);
-      
-      log(`Parsed data - contentPlan present and subtopicIndex: ${data.subtopicIndex}`);
-      
-      if (!data.contentPlan) {
-        log(`Content plan is missing after parsing`);
-        return res.status(400).json({
-          error: "Invalid content plan format",
-          message: "The content plan does not match the expected format"
-        });
-      }
-      
-      const plan = data.contentPlan;
-      const subtopicIndex = data.subtopicIndex;
-      const subtopic = plan.subtopics[subtopicIndex];
-      
-      log(`Researching subtopic ${subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
+      // Skip schema validation and use the raw data
+      // This avoids issues with complex nested objects and validation
+      const data = req.body;
+      let subtopicIndex: number;
+      let plan: any;
+      let subtopic: any;
       
       try {
+        subtopicIndex = typeof data.subtopicIndex === 'string' 
+          ? parseInt(data.subtopicIndex) 
+          : data.subtopicIndex;
+          
+        log(`Processing subtopic index: ${subtopicIndex}`);
+        
+        if (!data.contentPlan || !data.contentPlan.subtopics || !Array.isArray(data.contentPlan.subtopics)) {
+          log(`Invalid content plan structure: ${JSON.stringify(data.contentPlan, null, 2).substring(0, 100)}...`);
+          return res.status(400).json({
+            error: "Invalid content plan format",
+            message: "The content plan does not have valid subtopics"
+          });
+        }
+        
+        if (subtopicIndex < 0 || subtopicIndex >= data.contentPlan.subtopics.length) {
+          log(`Subtopic index out of range: ${subtopicIndex}, total subtopics: ${data.contentPlan.subtopics.length}`);
+          return res.status(400).json({
+            error: "Invalid subtopic index",
+            message: "The subtopic index is outside the valid range"
+          });
+        }
+        
+        plan = data.contentPlan;
+        subtopic = plan.subtopics[subtopicIndex];
+      
+        log(`Researching subtopic ${subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
+      
         // Check if Perplexity API key is available
         if (!process.env.PERPLEXITY_API_KEY) {
           throw new Error("PERPLEXITY_API_KEY is required for podcast research");
