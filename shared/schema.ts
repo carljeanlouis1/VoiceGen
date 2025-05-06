@@ -82,7 +82,21 @@ export const podcastScriptSchema = z.object({
   previousPartContent: z.string().optional(),
   searchResults: z.string().optional(),
   // Adding content plan support
-  contentPlan: z.record(z.any()).optional(),
+  contentPlan: z.lazy(() => z.object({
+    topic: z.string(),
+    targetDuration: z.number(),
+    subtopics: z.array(z.object({
+      title: z.string(),
+      key_points: z.array(z.string()),
+      research_prompt: z.string(),
+      estimated_duration: z.number()
+    })),
+    narrative_arc: z.string(),
+    tone_guidelines: z.string(),
+    transitions: z.array(z.string()),
+    introduction: z.string(),
+    conclusion: z.string()
+  }).optional()),
   subtopicIndex: z.number().optional(),
   generateAudio: z.boolean().default(false)
 });

@@ -1171,113 +1171,129 @@ Your output should be a structured JSON object containing:
     return plan;
   }
   
+  // Endpoint specifically for researching and generating content for individual subtopics
+  app.post("/api/podcast/subtopic-research", async (req, res) => {
+    try {
+      const data = podcastScriptSchema.parse(req.body);
+      
+      if (!data.contentPlan || data.subtopicIndex === undefined) {
+        return res.status(400).json({
+          error: "Missing required data",
+          message: "Content plan and subtopic index are required"
+        });
+      }
+      
+      const plan = data.contentPlan;
+      const subtopicIndex = data.subtopicIndex;
+      const subtopic = plan.subtopics[subtopicIndex];
+      
+      log(`Researching subtopic ${subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
+      
+      try {
+        // Check if Perplexity API key is available
+        if (!process.env.PERPLEXITY_API_KEY) {
+          throw new Error("PERPLEXITY_API_KEY is required for podcast research");
+        }
+
+        const apiKey = process.env.PERPLEXITY_API_KEY;
+        
+        // Use the subtopic-specific research prompt
+        const researchQuery = subtopic.research_prompt || `Comprehensive research on ${subtopic.title} for ${data.topic}`;
+        
+        // Create request body for Perplexity API
+        const requestBody = {
+          model: "llama-3.1-sonar-small-128k-online", // Using the newer model
+          messages: [
+            {
+              role: "system",
+              content: "You are a comprehensive research assistant. Provide detailed, thorough, factual information from reliable sources. Include relevant data, expert opinions, statistics, and historical context. Focus on accuracy and depth of information."
+            },
+            {
+              role: "user",
+              content: researchQuery
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.2,
+          top_p: 0.9,
+          return_images: false,
+          return_related_questions: true,
+          search_recency_filter: "month",
+          top_k: 0,
+          stream: false,
+          presence_penalty: 0,
+          frequency_penalty: 1
+        };
+      
+        log('Sending targeted research request to Perplexity API for subtopic...');
+        const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        // Check for API errors
+        if (!perplexityResponse.ok) {
+          const errorText = await perplexityResponse.text();
+          log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
+          throw new Error(`Failed to get research results: ${perplexityResponse.status}`);
+        }
+        
+        // Parse API response
+        const researchData = await perplexityResponse.json();
+        
+        // Extract content
+        let searchResults = "";
+        let citations: string[] = [];
+        
+        if (researchData.choices && researchData.choices.length > 0 && researchData.choices[0].message) {
+          searchResults = researchData.choices[0].message.content || "";
+          log(`Research data received (${searchResults.length} chars)`);
+        } else {
+          throw new Error("Unexpected Perplexity API response format");
+        }
+        
+        // Extract citations
+        if (researchData.citations && Array.isArray(researchData.citations)) {
+          citations = researchData.citations;
+          log(`Found ${citations.length} citations`);
+          
+          // Add citations to research results
+          searchResults += "\n\nSources:\n" + citations.join("\n");
+        }
+        
+        // Now proceed to script generation with the research results using the content plan
+        return await generatePodcastScriptWithPlan(data, searchResults, plan, subtopicIndex, res);
+        
+      } catch (error: any) {
+        log(`Research error: ${error?.message || "Unknown error"}`);
+        res.status(500).json({
+          error: "Research failed",
+          message: error?.message || "Failed to complete podcast research",
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error parsing request body: ${errorMessage}`);
+      res.status(400).json({
+        error: "Invalid request",
+        message: "The request body does not match the expected schema"
+      });
+    }
+  });
+
   // Endpoint for podcast script research and generation
   app.post("/api/podcast/research", async (req, res) => {
     try {
       const data = podcastScriptSchema.parse(req.body);
       log(`Starting podcast research for topic: "${data.topic}"`);
       
-      // If we have a content plan and subtopic index, use targeted research
-      if (data.contentPlan && data.subtopicIndex !== undefined) {
-        const plan = data.contentPlan;
-        const subtopic = plan.subtopics[data.subtopicIndex];
-        
-        log(`Researching subtopic ${data.subtopicIndex + 1}/${plan.subtopics.length}: "${subtopic.title}"`);
-        
-        try {
-          // Check if Perplexity API key is available
-          if (!process.env.PERPLEXITY_API_KEY) {
-            throw new Error("PERPLEXITY_API_KEY is required for podcast research");
-          }
-
-          const apiKey = process.env.PERPLEXITY_API_KEY;
-          
-          // Use the subtopic-specific research prompt
-          const researchQuery = subtopic.research_prompt || `Comprehensive research on ${subtopic.title} for ${data.topic}`;
-          
-          // Create request body for Perplexity API
-          const requestBody = {
-            model: "sonar-pro", 
-            messages: [
-              {
-                role: "system",
-                content: "You are a comprehensive research assistant. Provide detailed, thorough, factual information from reliable sources. Include relevant data, expert opinions, statistics, and historical context. Focus on accuracy and depth of information."
-              },
-              {
-                role: "user",
-                content: researchQuery
-              }
-            ],
-            max_tokens: 4000,
-            temperature: 0.2,
-            top_p: 0.9,
-            return_images: false,
-            return_related_questions: true,
-            search_recency_filter: "month",
-            top_k: 0,
-            stream: false,
-            presence_penalty: 0,
-            frequency_penalty: 1,
-            web_search_options: { 
-              search_context_size: "high",
-              search_depth: "deep"
-            }
-          };
-        
-          log('Sending targeted research request to Perplexity API for subtopic...');
-          const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
-            },
-            body: JSON.stringify(requestBody)
-          });
-          
-          // Check for API errors
-          if (!perplexityResponse.ok) {
-            const errorText = await perplexityResponse.text();
-            log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
-            throw new Error(`Failed to get research results: ${perplexityResponse.status}`);
-          }
-          
-          // Parse API response
-          const researchData = await perplexityResponse.json();
-          
-          // Extract content
-          let searchResults = "";
-          let citations: string[] = [];
-          
-          if (researchData.choices && researchData.choices.length > 0 && researchData.choices[0].message) {
-            searchResults = researchData.choices[0].message.content || "";
-            log(`Research data received (${searchResults.length} chars)`);
-          } else {
-            throw new Error("Unexpected Perplexity API response format");
-          }
-          
-          // Extract citations
-          if (researchData.citations && Array.isArray(researchData.citations)) {
-            citations = researchData.citations;
-            log(`Found ${citations.length} citations`);
-            
-            // Add citations to research results
-            searchResults += "\n\nSources:\n" + citations.join("\n");
-          }
-          
-          // Now proceed to script generation with the research results using the content plan
-          return await generatePodcastScriptWithPlan(data, searchResults, plan, data.subtopicIndex, res);
-          
-        } catch (error: any) {
-          log(`Research error: ${error?.message || "Unknown error"}`);
-          res.status(500).json({
-            error: "Research failed",
-            message: error?.message || "Failed to complete podcast research",
-          });
-        }
-      }
-      // Fall back to existing implementation for regular podcast generation
-      else if (!data.searchResults) {
+      // Standard implementation for regular podcast generation
+      if (!data.searchResults) {
         try {
           // Check if Perplexity API key is available
           if (!process.env.PERPLEXITY_API_KEY) {
@@ -1386,7 +1402,7 @@ Your output should be a structured JSON object containing:
   
   // Helper function to generate podcast script with content plan
   async function generatePodcastScriptWithPlan(
-    data: z.infer<typeof podcastScriptSchema>, 
+    data: z.infer<typeof podcastScriptSchema> & { contentPlan?: ContentPlan, subtopicIndex?: number }, 
     searchResults: string,
     plan: ContentPlan,
     subtopicIndex: number,
