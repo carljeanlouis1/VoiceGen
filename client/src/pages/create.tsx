@@ -244,33 +244,44 @@ export default function CreatePage() {
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
       // Determine which endpoint to use based on whether we're using content planner
-      const endpoint = useContentPlanner && contentPlan && currentSubtopicIndex !== null
+      const useSubtopicResearch = useContentPlanner && contentPlan && currentSubtopicIndex !== null;
+      const endpoint = useSubtopicResearch
         ? "/api/podcast/subtopic-research"
         : "/api/podcast/research";
       
-      const requestData = useContentPlanner && contentPlan && currentSubtopicIndex !== null
-        ? {
-            topic: podcastTopic,
-            model: podcastModel,
-            targetDuration: podcastDuration,
-            voice: podcastVoice,
-            part: currentPodcastPart,
-            totalParts: podcastMultipart ? podcastParts : 1,
-            previousPartContent: previousPartContent,
-            searchResults: podcastResearchResults,
-            contentPlan: contentPlan,
-            subtopicIndex: currentSubtopicIndex
-          }
-        : {
-            topic: podcastTopic,
-            model: podcastModel,
-            targetDuration: podcastDuration,
-            voice: podcastVoice,
-            part: currentPodcastPart,
-            totalParts: podcastMultipart ? podcastParts : 1,
-            previousPartContent: previousPartContent,
-            searchResults: podcastResearchResults
-          };
+      console.log(`Using endpoint: ${endpoint}`);
+      console.log(`Content plan available: ${!!contentPlan}`);
+      console.log(`Current subtopic index: ${currentSubtopicIndex}`);
+      
+      let requestData;
+      
+      if (useSubtopicResearch) {
+        console.log(`Researching subtopic ${currentSubtopicIndex} of ${contentPlan!.subtopics.length}: ${contentPlan!.subtopics[currentSubtopicIndex!].title}`);
+        
+        requestData = {
+          topic: podcastTopic,
+          model: podcastModel,
+          targetDuration: podcastDuration,
+          voice: podcastVoice,
+          part: currentPodcastPart,
+          totalParts: podcastMultipart ? podcastParts : 1,
+          previousPartContent: previousPartContent,
+          searchResults: podcastResearchResults,
+          contentPlan: contentPlan,
+          subtopicIndex: currentSubtopicIndex
+        };
+      } else {
+        requestData = {
+          topic: podcastTopic,
+          model: podcastModel,
+          targetDuration: podcastDuration,
+          voice: podcastVoice,
+          part: currentPodcastPart,
+          totalParts: podcastMultipart ? podcastParts : 1,
+          previousPartContent: previousPartContent,
+          searchResults: podcastResearchResults
+        };
+      }
       
       return apiRequest(endpoint, {
         method: "POST",

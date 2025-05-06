@@ -71,6 +71,7 @@ export function ContentPlanner({
   // Start research on the selected subtopic
   const startSubtopicResearch = () => {
     if (plan && selectedSubtopic !== null) {
+      console.log(`Starting research for subtopic ${selectedSubtopic}: ${plan.subtopics[selectedSubtopic].title}`);
       onStartResearch(plan, selectedSubtopic);
     }
   };

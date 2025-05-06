@@ -1175,15 +1175,26 @@ Your output should be a structured JSON object containing:
   app.post("/api/podcast/subtopic-research", async (req, res) => {
     try {
       log(`Received subtopic research request: ${JSON.stringify(req.body, null, 2).substring(0, 200)}...`);
-      const data = podcastScriptSchema.parse(req.body);
       
-      log(`Parsed data - contentPlan: ${data.contentPlan ? 'present' : 'missing'}, subtopicIndex: ${data.subtopicIndex}`);
-      
-      if (!data.contentPlan || data.subtopicIndex === undefined) {
+      // First check if we have the basic data before validation
+      if (!req.body.contentPlan || req.body.subtopicIndex === undefined) {
         log(`Missing required content plan or subtopic index in request`);
         return res.status(400).json({
           error: "Missing required data",
           message: "Content plan and subtopic index are required"
+        });
+      }
+      
+      // Then parse with schema
+      const data = podcastScriptSchema.parse(req.body);
+      
+      log(`Parsed data - contentPlan present and subtopicIndex: ${data.subtopicIndex}`);
+      
+      if (!data.contentPlan) {
+        log(`Content plan is missing after parsing`);
+        return res.status(400).json({
+          error: "Invalid content plan format",
+          message: "The content plan does not match the expected format"
         });
       }
       
