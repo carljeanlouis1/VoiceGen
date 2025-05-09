@@ -55,6 +55,7 @@ export const podcastScriptSchema = z.object({
   totalParts: z.number().optional(),
   previousPartContent: z.string().optional(),
   searchResults: z.string().optional(),
+  extendedMode: z.boolean().default(false), // Extended podcast mode flag
 });
 
 // Maximum characters per chunk for OpenAI's TTS

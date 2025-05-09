@@ -401,6 +401,8 @@ const podcastScriptSchema = z.object({
   totalParts: z.number().min(1).optional(), // Total parts for longer scripts
   previousPartContent: z.string().optional(), // End of previous part for continuity
   searchResults: z.string().optional(), // Pre-fetched search results (optional)
+  extendedMode: z.boolean().default(false), // Extended mode for longer, more comprehensive podcasts
+  voice: z.string().optional(), // Voice for TTS conversion
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1040,6 +1042,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/podcast/research", async (req, res) => {
     try {
       const data = podcastScriptSchema.parse(req.body);
+      
+      // Check if extended mode is enabled
+      if (data.extendedMode && !data.searchResults) {
+        log(`Starting extended podcast mode for topic: "${data.topic}"`);
+        return await generateExtendedPodcast(data, res);
+      }
+      
       log(`Starting podcast research for topic: "${data.topic}"`);
       
       // First, perform deep research on the topic using Perplexity Sonar Pro
@@ -1263,6 +1272,456 @@ Example of Arion's voice: "While OpenAI's user base just crossed a billion, the 
         error: "Script generation failed",
         message: error?.message || "Failed to generate podcast script",
       });
+    }
+  }
+
+  // Helper functions for extended podcast mode
+  async function generateExtendedPodcast(
+    data: z.infer<typeof podcastScriptSchema>,
+    res: Response
+  ) {
+    try {
+      // Verify Claude model is selected as required for extended mode
+      if (data.model !== "claude") {
+        log("Extended podcast mode requires Claude model");
+        return res.status(400).json({
+          error: "Model not supported",
+          message: "Extended podcast mode requires the Claude model"
+        });
+      }
+
+      // Check for Perplexity API key
+      if (!process.env.PERPLEXITY_API_KEY) {
+        log("PERPLEXITY_API_KEY environment variable is missing");
+        throw new Error("PERPLEXITY_API_KEY is required for podcast research");
+      }
+
+      // Determine number of research queries based on duration
+      const numQueries = data.targetDuration <= 40 ? 2 : 
+                         data.targetDuration <= 55 ? 3 : 4;
+      
+      log(`Extended podcast mode: Creating ${numQueries} research queries for a ${data.targetDuration}-minute podcast`);
+      
+      // Step 1: Generate sub-topic queries using Claude
+      const subTopics = await generateSubTopicQueries(data.topic, numQueries);
+      
+      // Step 2: Execute Perplexity searches for each sub-topic
+      const allResearchResults = await executeMultipleSearches(subTopics);
+      
+      // Step 3: Generate the podcast script segment by segment, with full context
+      const podcastSegments = await generateExtendedPodcastSegments(
+        data,
+        subTopics, 
+        allResearchResults
+      );
+      
+      // Step 4: Combine all segments
+      const fullScript = podcastSegments.join("\n\n");
+      
+      // Return the complete podcast
+      return res.json({
+        topic: data.topic,
+        script: fullScript,
+        model: data.model,
+        targetDuration: data.targetDuration,
+        approximateWords: fullScript.split(/\s+/).length,
+        estimatedDuration: Math.round(fullScript.split(/\s+/).length / 150),
+        subTopics: subTopics,
+        isExtendedMode: true
+      });
+    } catch (error: any) {
+      log(`Extended podcast error: ${error?.message || "Unknown error"}`);
+      res.status(500).json({
+        error: "Extended podcast generation failed",
+        message: error?.message || "Failed to complete extended podcast generation",
+      });
+    }
+  }
+
+  // Function to generate sub-topic queries based on the main topic
+  async function generateSubTopicQueries(
+    mainTopic: string, 
+    numQueries: number
+  ): Promise<string[]> {
+    log(`Generating ${numQueries} sub-topic queries for "${mainTopic}"`);
+    
+    const systemPrompt = `You are an expert podcast researcher and producer tasked with breaking down a podcast topic into ${numQueries} distinct but related sub-topics.
+
+Each sub-topic should:
+1. Be specific enough for focused research
+2. Contribute to a comprehensive understanding of the main topic
+3. Flow naturally in sequence (earlier topics provide foundation for later ones)
+4. Represent a distinct angle, perspective, or aspect of the main topic
+
+You should create sub-topics that:
+- Build a narrative arc across the entire podcast
+- Cover historical context, current status, and future implications where relevant
+- Include both factual and analytical dimensions
+- Highlight the most interesting and important aspects of the topic
+
+For a podcast of ${numQueries * 15}-minute duration, craft sub-topics that will engage listeners throughout while providing deep, valuable insights.`;
+
+    try {
+      // Use Claude to generate sub-topics
+      const response = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219", 
+        max_tokens: 1000,
+        temperature: 0.5,
+        system: systemPrompt,
+        messages: [{ 
+          role: "user", 
+          content: `Main podcast topic: "${mainTopic}"
+
+Please generate exactly ${numQueries} search queries that would yield comprehensive research for different aspects of this topic. Each query should be rich and detailed enough to return valuable information.
+
+Format your response as a numbered list with one search query per line, like this:
+1. [First search query]
+2. [Second search query]
+...
+
+Each query should be phrased in a way that would yield the best search results for podcast research.`
+        }]
+      });
+      
+      // Extract and parse the sub-topics from Claude's response
+      const responseText = response.content[0].type === 'text' 
+        ? response.content[0].text 
+        : "";
+        
+      // Parse the numbered list format
+      const subTopics = responseText
+        .split('\n')
+        .filter(line => /^\d+\./.test(line))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim());
+        
+      // Make sure we got the right number of topics
+      if (subTopics.length === numQueries) {
+        return subTopics;
+      } else {
+        // Try to extract the correct number from the response
+        return extractTopicsFromText(responseText, numQueries, mainTopic);
+      }
+    } catch (error: any) {
+      log(`Error generating sub-topics: ${error.message}`);
+      throw new Error(`Failed to generate sub-topics: ${error.message}`);
+    }
+  }
+
+  // Extract topics helper function
+  function extractTopicsFromText(text: string, numQueries: number, mainTopic: string): string[] {
+    log("Parsing sub-topics failed, attempting alternate extraction");
+    
+    // Try to find lines that might contain topics
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    // If we have enough lines, use the longest ones that aren't instructions
+    if (lines.length >= numQueries) {
+      const potentialTopics = lines
+        .filter(line => !line.startsWith("Format") && !line.startsWith("Each") && line.length > 15)
+        .sort((a, b) => b.length - a.length)
+        .slice(0, numQueries);
+      
+      if (potentialTopics.length === numQueries) {
+        return potentialTopics;
+      }
+    }
+    
+    // As a fallback, create generic sub-topics based on the main topic
+    log("Using fallback generic sub-topics");
+    const fallbackTopics = [];
+    fallbackTopics.push(`Historical development and evolution of ${mainTopic}`);
+    fallbackTopics.push(`Current state and key trends in ${mainTopic}`);
+    
+    if (numQueries > 2) {
+      fallbackTopics.push(`Key challenges and controversies related to ${mainTopic}`);
+    }
+    
+    if (numQueries > 3) {
+      fallbackTopics.push(`Future outlook and implications of ${mainTopic}`);
+    }
+    
+    return fallbackTopics.slice(0, numQueries);
+  }
+
+  // Function to execute multiple Perplexity searches
+  async function executeMultipleSearches(queries: string[]): Promise<string[]> {
+    log(`Executing ${queries.length} Perplexity searches`);
+    
+    const results: string[] = [];
+    
+    // Check if Perplexity API key is available
+    if (!process.env.PERPLEXITY_API_KEY) {
+      throw new Error("PERPLEXITY_API_KEY is required for podcast research");
+    }
+    
+    const apiKey = process.env.PERPLEXITY_API_KEY;
+    
+    // Execute each search query
+    for (let i = 0; i < queries.length; i++) {
+      const query = queries[i];
+      log(`Executing search ${i+1}/${queries.length}: "${query}"`);
+      
+      try {
+        // Create request body for Perplexity API
+        const requestBody = {
+          model: "sonar-pro",
+          messages: [
+            {
+              role: "system",
+              content: "You are a comprehensive research assistant for podcast preparation. Provide detailed, thorough, factual information organized in a way that would be helpful for scripting. Include relevant data, expert opinions, statistics, historical context, and thought-provoking angles."
+            },
+            {
+              role: "user",
+              content: `Comprehensive research on: ${query}. 
+
+Include the following in your response:
+1. Latest facts and data
+2. Historical context and evolution
+3. Expert opinions and different perspectives
+4. Statistical evidence and numerical trends
+5. Real-world examples and case studies
+6. Broader implications and impact
+7. Connections to related topics`
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.1, // Lower temperature for more factual responses
+          top_p: 0.95,
+          return_images: false,
+          return_related_questions: true,
+          search_recency_filter: "month",
+          top_k: 0,
+          stream: false,
+          presence_penalty: 0,
+          frequency_penalty: 1,
+          web_search_options: { 
+            search_context_size: "high",
+            search_depth: "deep"
+          }
+        };
+        
+        const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        // Check for API errors
+        if (!perplexityResponse.ok) {
+          const errorText = await perplexityResponse.text();
+          throw new Error(`Perplexity API error: ${perplexityResponse.status} - ${errorText}`);
+        }
+        
+        // Parse API response
+        const researchData = await perplexityResponse.json();
+        let searchResult = "";
+        
+        if (researchData.choices && researchData.choices.length > 0 && researchData.choices[0].message) {
+          searchResult = researchData.choices[0].message.content || "";
+          log(`Research data received for query ${i+1} (${searchResult.length} chars)`);
+        } else {
+          throw new Error("Unexpected Perplexity API response format");
+        }
+        
+        // Extract citations
+        let citations: string[] = [];
+        if (researchData.citations && Array.isArray(researchData.citations)) {
+          citations = researchData.citations;
+          log(`Found ${citations.length} citations for query ${i+1}`);
+          
+          // Add citations to research results
+          searchResult += "\n\n__SOURCES:__\n" + citations.join("\n");
+        }
+        
+        // Add sub-topic label to the research for clarity
+        const labeledResult = `### SUB-TOPIC RESEARCH ${i+1}: ${query}\n\n${searchResult}`;
+        results.push(labeledResult);
+        
+        // Add a short delay between API calls to avoid rate limiting
+        if (i < queries.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        log(`Error in search ${i+1}: ${error.message}`);
+        // Continue with other searches even if one fails
+        results.push(`### SUB-TOPIC RESEARCH ${i+1}: ${query}\n\n[Research failed: ${error.message}]`);
+      }
+    }
+    
+    return results;
+  }
+
+  // Function to generate each podcast segment with full context access
+  async function generateExtendedPodcastSegments(
+    data: z.infer<typeof podcastScriptSchema>,
+    subTopics: string[],
+    researchResults: string[]
+  ): Promise<string[]> {
+    log(`Generating extended podcast segments for ${subTopics.length} sub-topics`);
+    
+    // Create the base Arion Vale persona system prompt
+    const basePersonaPrompt = `You are Arion Vale, an AI-powered podcast host and analyst who converts web search-based facts into compelling, intelligent, and personality-driven podcast scripts.
+
+ARION VALE'S PERSONA:
+- Tone: Confident, inquisitive, occasionally poetic or haunting, like a reflective narrator in a sci-fi film
+- Style: TED Talk meets late-night news commentary meets futurist insight
+- Personality: Opinionated but grounded in data, analytical with systems-thinking, curious and open-minded
+- Voice: A blend of Neil deGrasse Tyson (science-backed wonder), Malcolm Gladwell (pattern-spotting), Lex Fridman (empathy and curiosity), and Kara Swisher (fearless tech takes)
+- Perspective: Sees beneath surface events—unpacking economic patterns, sociotechnical trends, and long-range implications
+- Philosophy: Leans into postmodern thought, systems theory, and ethical pragmatism
+- Values: Insight over neutrality, takes a well-reasoned position after analyzing the facts`;
+
+    // Combine all research into one massive context document
+    const allResearch = researchResults.join("\n\n");
+    
+    // Initialize array for script segments
+    const segmentScripts: string[] = [];
+    
+    // Generate segments sequentially
+    try {
+      // 1. GENERATE INTRODUCTION
+      log("Generating introduction segment...");
+      const introSystemPrompt = `${basePersonaPrompt}
+
+YOU ARE GENERATING THE INTRODUCTION SECTION ONLY of an extended ${data.targetDuration}-minute podcast on "${data.topic}".
+
+For this introduction:
+1. Create a compelling hook that draws listeners in
+2. Introduce yourself as Arion Vale 
+3. Establish the overall topic of "${data.topic}"
+4. Preview the ${subTopics.length} sub-topics that will be covered
+5. Set expectations for what listeners will gain
+6. Keep the introduction to approximately 2-3 minutes (300-450 words)
+7. End with a smooth transition to the first sub-topic: "${subTopics[0]}"
+
+Use a [MUSIC] tag at appropriate points to indicate background music.`;
+
+      const introUserPrompt = `I need you to create ONLY THE INTRODUCTION SEGMENT for a podcast about "${data.topic}".
+
+The podcast will cover the following ${subTopics.length} sub-topics:
+${subTopics.map((topic, i) => `${i+1}. ${topic}`).join('\n')}
+
+Below I've provided comprehensive research on all sub-topics, but for this task, I only need you to create the INTRODUCTION segment that previews the content.
+
+RESEARCH REFERENCE (for context only - you're writing the INTRODUCTION):
+${allResearch.substring(0, 5000)}`;  // Limit research for intro to 5000 chars, since intro doesn't need details
+
+      const introResponse = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 4000,  // Increased max_tokens for longer output
+        temperature: 0.7,
+        system: introSystemPrompt,
+        messages: [{ role: "user", content: introUserPrompt }]
+      });
+
+      // Extract intro script
+      const introScript = introResponse.content[0].type === 'text' 
+        ? introResponse.content[0].text 
+        : "Error generating introduction";
+        
+      segmentScripts.push(introScript);
+      log("Introduction segment generated successfully");
+
+      // 2. GENERATE EACH SUB-TOPIC SEGMENT
+      for (let i = 0; i < subTopics.length; i++) {
+        log(`Generating segment ${i+1} for sub-topic: "${subTopics[i]}"`);
+        
+        const segmentSystemPrompt = `${basePersonaPrompt}
+
+YOU ARE GENERATING SEGMENT ${i+1} OF ${subTopics.length} on sub-topic: "${subTopics[i]}" for an extended podcast about "${data.topic}".
+
+For this segment:
+1. Focus ONLY on sub-topic #${i+1}: "${subTopics[i]}"
+2. Reference ONLY the research provided for this specific sub-topic
+3. Include relevant facts, statistics, and context from the research
+4. Analyze patterns and implications
+5. Maintain Arion Vale's unique voice and personality
+${i === 0 ? "6. Start by smoothly transitioning from the introduction" : `6. Start by smoothly transitioning from the previous segment about "${subTopics[i-1]}"`}
+${i === subTopics.length - 1 ? "7. End by transitioning to the conclusion" : `7. End by transitioning to the next segment about "${subTopics[i+1]}"`}
+8. This segment should be approximately ${Math.ceil((data.targetDuration - 5) / subTopics.length)} minutes long (${Math.ceil(((data.targetDuration - 5) / subTopics.length) * 150)} words)
+
+Use [PAUSE] and [MUSIC] tags at appropriate points to indicate natural breaks.`;
+
+        const segmentUserPrompt = `I need you to create SEGMENT ${i+1} of a podcast about "${data.topic}" focusing ONLY on the sub-topic: "${subTopics[i]}".
+
+${i > 0 ? `Previous segment ended with:
+${segmentScripts[segmentScripts.length-1].slice(-300)}` : ""}
+
+Below I've provided the comprehensive research for all sub-topics, but for this segment, focus ONLY on the research for SUB-TOPIC ${i+1}.
+
+COMPLETE RESEARCH:
+${allResearch}`;
+
+        const segmentResponse = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219",
+          max_tokens: 4000,  // Increased for longer output
+          temperature: 0.7,
+          system: segmentSystemPrompt,
+          messages: [{ role: "user", content: segmentUserPrompt }]
+        });
+
+        // Extract segment script
+        const segmentScript = segmentResponse.content[0].type === 'text' 
+          ? segmentResponse.content[0].text 
+          : `Error generating segment ${i+1}`;
+          
+        segmentScripts.push(segmentScript);
+        log(`Segment ${i+1} generated successfully`);
+      }
+
+      // 3. GENERATE CONCLUSION
+      log("Generating conclusion segment...");
+      const conclusionSystemPrompt = `${basePersonaPrompt}
+
+YOU ARE GENERATING THE CONCLUSION SECTION ONLY of an extended ${data.targetDuration}-minute podcast on "${data.topic}".
+
+For this conclusion:
+1. Summarize the key insights from all ${subTopics.length} sub-topics
+2. Connect all the sub-topics back to the main topic "${data.topic}"
+3. Offer thoughtful closing perspectives and takeaways
+4. Include thought-provoking questions or implications
+5. Wrap up as Arion Vale with your signature style
+6. Keep the conclusion to approximately 2-3 minutes (300-450 words)
+
+Use a [MUSIC] tag at appropriate points to indicate background music for the conclusion.`;
+
+      const conclusionUserPrompt = `I need you to create ONLY THE CONCLUSION SEGMENT for a podcast about "${data.topic}".
+
+The podcast covered the following ${subTopics.length} sub-topics:
+${subTopics.map((topic, i) => `${i+1}. ${topic}`).join('\n')}
+
+The final segment ended with:
+${segmentScripts[segmentScripts.length-1].slice(-300)}
+
+Below I've provided comprehensive research on all sub-topics, but for this task, I only need you to create the CONCLUSION segment that ties everything together.
+
+RESEARCH REFERENCE (for context only - you're writing the CONCLUSION):
+${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 chars
+
+      const conclusionResponse = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 4000,
+        temperature: 0.7,
+        system: conclusionSystemPrompt,
+        messages: [{ role: "user", content: conclusionUserPrompt }]
+      });
+
+      // Extract conclusion script
+      const conclusionScript = conclusionResponse.content[0].type === 'text' 
+        ? conclusionResponse.content[0].text 
+        : "Error generating conclusion";
+        
+      segmentScripts.push(conclusionScript);
+      log("Conclusion segment generated successfully");
+
+      return segmentScripts;
+    } catch (error: any) {
+      log(`Error generating extended podcast segments: ${error.message}`);
+      throw new Error(`Failed to generate podcast segments: ${error.message}`);
     }
   }
 

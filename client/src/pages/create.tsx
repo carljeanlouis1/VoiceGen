@@ -86,6 +86,7 @@ export default function CreatePage() {
   const [podcastDuration, setPodcastDuration] = useState(10); // Default 10 minutes
   const [podcastModel, setPodcastModel] = useState<"gpt" | "claude">("gpt");
   const [podcastMultipart, setPodcastMultipart] = useState(false);
+  const [podcastExtendedMode, setPodcastExtendedMode] = useState(false); // Extended podcast mode
   const [podcastParts, setPodcastParts] = useState(1);
   const [podcastVoice, setPodcastVoice] = useState<typeof AVAILABLE_VOICES[number]>(AVAILABLE_VOICES[0]);
   const [podcastScript, setPodcastScript] = useState("");
@@ -247,7 +248,8 @@ export default function CreatePage() {
           part: currentPodcastPart,
           totalParts: podcastMultipart ? podcastParts : 1,
           previousPartContent: previousPartContent,
-          searchResults: podcastResearchResults
+          searchResults: podcastResearchResults,
+          extendedMode: podcastExtendedMode
         }
       });
     },
@@ -937,33 +939,58 @@ export default function CreatePage() {
                   </p>
                 </div>
                 
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="multipart-toggle">Multi-part Podcast</Label>
-                    <Switch
-                      id="multipart-toggle"
-                      checked={podcastMultipart}
-                      onCheckedChange={setPodcastMultipart}
-                    />
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="multipart-toggle">Multi-part Podcast</Label>
+                      <Switch
+                        id="multipart-toggle"
+                        checked={podcastMultipart}
+                        onCheckedChange={setPodcastMultipart}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Split your podcast into multiple parts for better organization and management.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Split your podcast into multiple parts for better organization and management.
-                  </p>
+                  
+                  {podcastMultipart && (
+                    <div className="space-y-2 pl-4 border-l-2 border-muted">
+                      <Label htmlFor="podcast-parts">Number of Parts: {podcastParts}</Label>
+                      <Slider
+                        id="podcast-parts"
+                        min={2}
+                        max={6}
+                        step={1}
+                        value={[podcastParts]}
+                        onValueChange={(value) => setPodcastParts(value[0])}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Extended Podcast Mode Toggle */}
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="extended-mode-toggle">Extended Research Mode</Label>
+                      <Switch
+                        id="extended-mode-toggle"
+                        checked={podcastExtendedMode}
+                        onCheckedChange={(checked) => {
+                          setPodcastExtendedMode(checked);
+                          // Force Claude model when extended mode is enabled
+                          if (checked) {
+                            setPodcastModel("claude");
+                          }
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Leverages Claude's full context window to create a comprehensive podcast with multiple sub-topics and deeper research.
+                      {podcastExtendedMode && podcastModel !== "claude" && 
+                        " (Requires Claude model - will be auto-selected)"}
+                    </p>
+                  </div>
                 </div>
-                
-                {podcastMultipart && (
-                  <div className="space-y-2 pl-4 border-l-2 border-muted">
-                    <Label htmlFor="podcast-parts">Number of Parts: {podcastParts}</Label>
-                    <Slider
-                      id="podcast-parts"
-                      min={2}
-                      max={6}
-                      step={1}
-                      value={[podcastParts]}
-                      onValueChange={(value) => setPodcastParts(value[0])}
-                    />
-                  </div>
-                )}
               </div>
               
               {/* Step 4: Voice Selection */}
