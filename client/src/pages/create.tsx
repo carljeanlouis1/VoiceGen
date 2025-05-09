@@ -17,9 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { AVAILABLE_VOICES, ContentPlan } from "@shared/schema";
+import { AVAILABLE_VOICES } from "@shared/schema";
 import { AudioPlayer } from "@/components/audio-player";
-import { ContentPlanner } from "@/components/content-planner";
 
 // Predefined system prompts for different content types
 const CONTENT_TEMPLATES = {
@@ -102,11 +101,6 @@ export default function CreatePage() {
   const [generatedParts, setGeneratedParts] = useState<{[key: number]: string}>({});
   const [processingPart, setProcessingPart] = useState<number | null>(null);
   const [autoGenerateAudio, setAutoGenerateAudio] = useState(true); // Auto-generate audio by default
-  
-  // Content planning states
-  const [contentPlan, setContentPlan] = useState<ContentPlan | null>(null);
-  const [useContentPlanner, setUseContentPlanner] = useState(true); // Use content planner by default
-  const [currentSubtopicIndex, setCurrentSubtopicIndex] = useState<number | null>(null);
   
   // Audio reference for voice samples
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -240,38 +234,12 @@ export default function CreatePage() {
     }
   };
 
-  // Mutation for podcast research and script generation with content plan
+  // Mutation for podcast research and script generation
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
-      // Determine which endpoint to use based on whether we're using content planner
-      const useSubtopicResearch = useContentPlanner && contentPlan && currentSubtopicIndex !== null;
-      const endpoint = useSubtopicResearch
-        ? "/api/podcast/subtopic-research"
-        : "/api/podcast/research";
-      
-      console.log(`Using endpoint: ${endpoint}`);
-      console.log(`Content plan available: ${!!contentPlan}`);
-      console.log(`Current subtopic index: ${currentSubtopicIndex}`);
-      
-      let requestData;
-      
-      if (useSubtopicResearch) {
-        console.log(`Researching subtopic ${currentSubtopicIndex} of ${contentPlan!.subtopics.length}: ${contentPlan!.subtopics[currentSubtopicIndex!].title}`);
-        
-        requestData = {
-          topic: podcastTopic,
-          model: podcastModel,
-          targetDuration: podcastDuration,
-          voice: podcastVoice,
-          part: currentPodcastPart,
-          totalParts: podcastMultipart ? podcastParts : 1,
-          previousPartContent: previousPartContent,
-          searchResults: podcastResearchResults,
-          contentPlan: contentPlan,
-          subtopicIndex: currentSubtopicIndex
-        };
-      } else {
-        requestData = {
+      return apiRequest("/api/podcast/research", {
+        method: "POST",
+        data: {
           topic: podcastTopic,
           model: podcastModel,
           targetDuration: podcastDuration,
@@ -280,37 +248,26 @@ export default function CreatePage() {
           totalParts: podcastMultipart ? podcastParts : 1,
           previousPartContent: previousPartContent,
           searchResults: podcastResearchResults
-        };
-      }
-      
-      return apiRequest(endpoint, {
-        method: "POST",
-        data: requestData
+        }
       });
     },
     onSuccess: (data) => {
       setPodcastScript(data.script);
       
       // Store research results from the first part for subsequent parts
-      if (currentPodcastPart === 1 || (useContentPlanner && contentPlan && currentSubtopicIndex !== null)) {
+      if (currentPodcastPart === 1) {
         setPodcastResearchFinished(true);
         // Store the research results for future parts
         setPodcastResearchResults(data.searchResults || "");
       }
       
-      const successMessage = useContentPlanner && contentPlan && currentSubtopicIndex !== null
-        ? `Created script for subtopic: ${contentPlan.subtopics[currentSubtopicIndex].title}`
-        : `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`;
-      
       toast({
         title: "Podcast script generated",
-        description: successMessage
+        description: `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
       });
       
       // Auto-generate audio for single-part podcast if enabled
-      if (autoGenerateAudio && !isAutomatedGeneration && 
-          (!podcastMultipart || (podcastMultipart && currentPodcastPart === podcastParts)) &&
-          (!useContentPlanner || !contentPlan || currentSubtopicIndex === contentPlan.subtopics.length - 1)) {
+      if (autoGenerateAudio && !isAutomatedGeneration && (!podcastMultipart || (podcastMultipart && currentPodcastPart === podcastParts))) {
         setTimeout(() => {
           ttsConversionMutation.mutate();
         }, 500);
@@ -627,10 +584,6 @@ export default function CreatePage() {
     setPreviousPartContent("");
     setGeneratedAudioUrl(null);
     setGeneratedAudioTitle("");
-    
-    // Reset content planning states
-    setContentPlan(null);
-    setCurrentSubtopicIndex(null);
   };
 
   return (
@@ -998,20 +951,6 @@ export default function CreatePage() {
                   </p>
                 </div>
                 
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="content-planner-toggle">Use Content Planner</Label>
-                    <Switch
-                      id="content-planner-toggle"
-                      checked={useContentPlanner}
-                      onCheckedChange={setUseContentPlanner}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Generate a structured content plan with subtopics and research prompts before creating your podcast.
-                  </p>
-                </div>
-                
                 {podcastMultipart && (
                   <div className="space-y-2 pl-4 border-l-2 border-muted">
                     <Label htmlFor="podcast-parts">Number of Parts: {podcastParts}</Label>
@@ -1137,26 +1076,6 @@ export default function CreatePage() {
               )}
             </CardFooter>
           </Card>
-          
-          {/* Content Planner - only shown when this option is enabled */}
-          {useContentPlanner && podcastTopic && (
-            <ContentPlanner
-              topic={podcastTopic}
-              duration={podcastDuration}
-              onPlanComplete={(plan) => {
-                setContentPlan(plan);
-                toast({
-                  title: "Content Plan Generated",
-                  description: `Created a structured plan with ${plan.subtopics.length} subtopics for your podcast`
-                });
-              }}
-              onStartResearch={(plan, subtopicIndex) => {
-                setContentPlan(plan);
-                setCurrentSubtopicIndex(subtopicIndex);
-                podcastResearchMutation.mutate();
-              }}
-            />
-          )}
           
           {/* Results Display */}
           {podcastScript && (
