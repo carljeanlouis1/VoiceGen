@@ -19,6 +19,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AVAILABLE_VOICES } from "@shared/schema";
 import { AudioPlayer } from "@/components/audio-player";
+import { useLocation } from "wouter";
 
 // Predefined system prompts for different content types
 const CONTENT_TEMPLATES = {
@@ -64,6 +65,7 @@ const PODCAST_MODELS = [
 
 export default function CreatePage() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   // Mode selection state
   const [createMode, setCreateMode] = useState<"content" | "podcast">("content");
   
@@ -308,6 +310,22 @@ export default function CreatePage() {
   // For tracking background processing job status
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [processingProgress, setProcessingProgress] = useState(0);
+  
+  // Function to navigate to chat with podcast content
+  const navigateToChatWithPodcast = () => {
+    if (podcastScript) {
+      // Store podcast content in localStorage temporarily
+      localStorage.setItem('podcastContent', podcastScript);
+      localStorage.setItem('podcastTitle', podcastTopic);
+      // Navigate to chat page
+      navigate('/chat?source=podcast');
+      
+      toast({
+        title: "Redirecting to chat",
+        description: "Now you can chat about the podcast content"
+      });
+    }
+  };
   
   // Effect for polling job status if needed
   useEffect(() => {
@@ -1320,6 +1338,15 @@ export default function CreatePage() {
                         Convert to Audio
                       </>
                     )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={navigateToChatWithPodcast}
+                    className="ml-2"
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Chat with Podcast
                   </Button>
                 </div>
               </CardFooter>

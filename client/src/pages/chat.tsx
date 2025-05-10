@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles } from "lucide-react";
+import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLocation } from "wouter";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -20,6 +21,8 @@ interface Message {
 type ModelType = "claude" | "gpt" | "gemini";
 
 export default function Chat() {
+  const [, navigate] = useLocation();
+  
   // State for file selection and context mode
   const [selectedFileId, setSelectedFileId] = useState<string>("");
   const [useContext, setUseContext] = useState<boolean>(true);
@@ -29,6 +32,11 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Podcast content state
+  const [podcastContent, setPodcastContent] = useState<string | null>(null);
+  const [podcastTitle, setPodcastTitle] = useState<string | null>(null);
+  const [isPodcastMode, setIsPodcastMode] = useState(false);
   
   // Scroll area ref for auto-scrolling
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -53,6 +61,33 @@ export default function Chat() {
   
   const modelName = getModelName();
   
+  // Check for podcast content from localStorage on component mount
+  useEffect(() => {
+    const content = localStorage.getItem('podcastContent');
+    const title = localStorage.getItem('podcastTitle');
+    
+    if (content && title) {
+      setPodcastContent(content);
+      setPodcastTitle(title);
+      setIsPodcastMode(true);
+      setUseContext(true); // Enable context mode for podcast
+      
+      // Get the URL parameters to see if we're coming from the podcast page
+      const urlParams = new URLSearchParams(window.location.search);
+      const source = urlParams.get('source');
+      
+      if (source === 'podcast') {
+        // Set an initial system message
+        setMessages([
+          {
+            role: "system",
+            content: `You are discussing a podcast about ${title}. The podcast content is provided as context. Be helpful, informative, and engaging.`
+          }
+        ]);
+      }
+    }
+  }, []);
+  
   // Auto scroll to bottom of messages
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -62,12 +97,23 @@ export default function Chat() {
 
   // Handle tab change
   const handleTabChange = (value: string) => {
-    const isContextMode = value === "context";
-    setUseContext(isContextMode);
+    if (value === "podcast") {
+      setIsPodcastMode(true);
+      setUseContext(true);
+    } else {
+      setIsPodcastMode(false);
+      const isContextMode = value === "context";
+      setUseContext(isContextMode);
+    }
     
     // Clear messages when switching modes
     setMessages([]);
     setInput("");
+  };
+  
+  // Function to return to podcast creation
+  const returnToPodcast = () => {
+    navigate('/create');
   };
   
   // Handle model change
@@ -81,7 +127,7 @@ export default function Chat() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || (useContext && !selectedFile)) return;
+    if (!input.trim() || (useContext && !selectedFile && !isPodcastMode)) return;
 
     const userMessage: Message = { role: "user", content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -89,14 +135,28 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
+      // Determine the context to use
+      let context = "";
+      let useContextFlag = false;
+      
+      if (useContext) {
+        if (isPodcastMode && podcastContent) {
+          context = podcastContent;
+          useContextFlag = true;
+        } else if (selectedFile) {
+          context = selectedFile.text;
+          useContextFlag = true;
+        }
+      }
+      
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMessage],
-          context: useContext && selectedFile ? selectedFile.text : "",
+          context: context,
           model: modelType,
-          useContext: useContext && !!selectedFile
+          useContext: useContextFlag
         })
       });
 
@@ -129,10 +189,32 @@ export default function Chat() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl">AI Chat</CardTitle>
-              <CardDescription>
-                Chat with AI models with or without content context
-              </CardDescription>
+              {isPodcastMode && podcastTitle ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2" 
+                      onClick={returnToPodcast}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Back to Podcast
+                    </Button>
+                  </div>
+                  <CardTitle className="text-2xl mt-2">Chat about "{podcastTitle}"</CardTitle>
+                  <CardDescription>
+                    Ask questions and discuss the podcast with the AI
+                  </CardDescription>
+                </>
+              ) : (
+                <>
+                  <CardTitle className="text-2xl">AI Chat</CardTitle>
+                  <CardDescription>
+                    Chat with AI models with or without content context
+                  </CardDescription>
+                </>
+              )}
             </div>
             <div className="flex gap-2">
               <Badge variant="outline" className="bg-primary/10 text-primary">
@@ -144,8 +226,11 @@ export default function Chat() {
         
         <CardContent className="space-y-4">
           {/* Mode selection tabs */}
-          <Tabs defaultValue="context" onValueChange={handleTabChange}>
-            <TabsList className="w-full grid grid-cols-2">
+          <Tabs 
+            defaultValue={isPodcastMode ? "podcast" : "context"} 
+            onValueChange={handleTabChange}
+          >
+            <TabsList className={`w-full grid ${isPodcastMode ? "grid-cols-3" : "grid-cols-2"}`}>
               <TabsTrigger value="context" className="flex items-center gap-1">
                 <FileText className="h-4 w-4" />
                 <span>Content Analysis</span>
@@ -154,6 +239,12 @@ export default function Chat() {
                 <Brain className="h-4 w-4" />
                 <span>General Chat</span>
               </TabsTrigger>
+              {isPodcastMode && (
+                <TabsTrigger value="podcast" className="flex items-center gap-1">
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Podcast Chat</span>
+                </TabsTrigger>
+              )}
             </TabsList>
             
             {/* Context mode content */}
