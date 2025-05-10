@@ -301,6 +301,25 @@ export default function Chat() {
                 </p>
               </div>
             </TabsContent>
+            
+            {/* Podcast mode content */}
+            {isPodcastMode && (
+              <TabsContent value="podcast">
+                <div className="rounded-md border bg-card p-4 mt-2">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-full bg-primary/10">
+                      <MessageSquare className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium mb-1">Podcast: {podcastTitle}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Ask questions about the podcast content, request summaries, or discuss specific parts of the podcast. The AI has access to the full podcast script and can help you understand or analyze it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
           
           {/* Model selection */}
@@ -337,8 +356,8 @@ export default function Chat() {
             </div>
           </div>
           
-          {/* Chat interface - show if in general chat mode or a file is selected in context mode */}
-          {(!useContext || selectedFile) && (
+          {/* Chat interface - show if in general chat mode, podcast mode, or a file is selected in context mode */}
+          {(!useContext || selectedFile || (isPodcastMode && podcastContent)) && (
             <>
               <ScrollArea 
                 className="h-[350px] rounded-md border p-4 overflow-y-auto" 
@@ -389,16 +408,19 @@ export default function Chat() {
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={useContext 
-                    ? "Ask questions about the content..." 
-                    : "Ask me anything..."
+                  placeholder={
+                    isPodcastMode
+                      ? "Ask questions about the podcast..."
+                      : useContext
+                        ? "Ask questions about the content..." 
+                        : "Ask me anything..."
                   }
                   className="flex-1"
                   disabled={isLoading}
                 />
                 <Button 
                   type="submit" 
-                  disabled={isLoading || !input.trim() || (useContext && !selectedFile)}
+                  disabled={isLoading || !input.trim() || (useContext && !selectedFile && !isPodcastMode)}
                 >
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
