@@ -57,10 +57,9 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// Models available for podcast creation
+// Models available for podcast creation (now just Claude 3.7)
 const PODCAST_MODELS = [
-  { id: "gpt", label: "GPT-4o", description: "OpenAI's advanced multimodal model" },
-  { id: "claude", label: "Claude 3.7", description: "Anthropic's most capable model" },
+  { id: "claude", label: "Claude 3.7 Sonnet", description: "Anthropic's most capable model" },
 ];
 
 export default function CreatePage() {
@@ -84,7 +83,7 @@ export default function CreatePage() {
   // Podcast creation states
   const [podcastTopic, setPodcastTopic] = useState("");
   const [podcastDuration, setPodcastDuration] = useState(10); // Default 10 minutes
-  const [podcastModel, setPodcastModel] = useState<"gpt" | "claude">("gpt");
+  const [podcastModel, setPodcastModel] = useState<"claude">("claude");
   const [podcastMultipart, setPodcastMultipart] = useState(false);
   const [podcastExtendedMode, setPodcastExtendedMode] = useState(false); // Extended podcast mode
   const [podcastParts, setPodcastParts] = useState(1);
@@ -913,33 +912,19 @@ export default function CreatePage() {
                 </p>
               </div>
               
-              {/* Step 2: Model Selection */}
+              {/* Step 2: Model Information */}
               <div className="space-y-2">
                 <Label>AI Model</Label>
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  {PODCAST_MODELS.map(model => (
-                    <div 
-                      key={model.id}
-                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                        podcastModel === model.id 
-                          ? 'border-primary bg-primary/5' 
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => setPodcastModel(model.id as "gpt" | "claude")}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
-                          podcastModel === model.id ? 'bg-primary' : 'border border-muted-foreground'
-                        }`}>
-                          {podcastModel === model.id && (
-                            <div className="w-2 h-2 rounded-full bg-white" />
-                          )}
-                        </div>
-                        <span className="font-medium">{model.label}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">{model.description}</p>
+                <div className="border rounded-lg p-4 bg-primary/5 border-primary">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-white" />
                     </div>
-                  ))}
+                    <span className="font-medium">Claude 3.7 Sonnet</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Using Anthropic's most capable model to create high-quality, research-backed podcast content
+                  </p>
                 </div>
               </div>
               
