@@ -798,7 +798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Endpoint to check job status
+  // Endpoint to check job status (legacy endpoint for backwards compatibility)
   app.get("/api/text-to-speech/status/:jobId", (req, res) => {
     const jobId = parseInt(req.params.jobId);
     
@@ -812,14 +812,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: "Job not found" });
     }
     
-    // Return job status
-    res.json({
+    // Return job status with special handling for audioUrl
+    if (job.type === 'tts') {
+      res.json({
+        id: job.id,
+        status: job.status,
+        progress: job.progress,
+        error: job.error,
+        type: job.type,
+        audioUrl: job.status === 'complete' && (job as TTSProcessingJob).audioUrl ? (job as TTSProcessingJob).audioUrl : undefined
+      });
+    } else {
+      // For other job types
+      res.json({
+        id: job.id,
+        status: job.status,
+        progress: job.progress,
+        error: job.error,
+        type: job.type
+      });
+    }
+  });
+  
+  // General endpoint to check status of any job type
+  app.get("/api/job-status/:jobId", (req, res) => {
+    const jobId = parseInt(req.params.jobId);
+    
+    if (isNaN(jobId)) {
+      return res.status(400).json({ message: "Invalid job ID" });
+    }
+    
+    const job = processingJobs.get(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    
+    // Base response with common properties
+    const response: any = {
       id: job.id,
       status: job.status,
       progress: job.progress,
-      error: job.error,
-      audioUrl: job.status === 'complete' ? job.audioUrl : undefined
-    });
+      created: job.created,
+      updated: job.updated,
+      type: job.type
+    };
+    
+    // Add error message if present
+    if (job.error) {
+      response.error = job.error;
+    }
+    
+    // Add job type-specific information
+    if (job.type === 'tts') {
+      const ttsJob = job as TTSProcessingJob;
+      // For completed TTS jobs, include the audioUrl
+      if (job.status === 'complete' && ttsJob.audioUrl) {
+        response.audioUrl = ttsJob.audioUrl;
+      }
+    } else if (job.type === 'podcast') {
+      const podcastJob = job as PodcastProcessingJob;
+      response.step = podcastJob.step;
+      // For completed podcast jobs, include the script
+      if (job.status === 'complete' && podcastJob.script) {
+        response.script = podcastJob.script;
+      }
+    }
+    
+    log(`Job status request for job ${jobId}: ${job.status} (${job.progress}%)`);
+    res.json(response);
   });
 
   app.get("/api/library", async (_req, res) => {
