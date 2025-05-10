@@ -41,19 +41,77 @@ if (!fs.existsSync(AUDIO_DIR)) {
 // Maximum allowed text length (approximately 60 minutes of audio)
 const MAX_TEXT_LENGTH = 100000;
 
-// Holds in-memory processing state for each job
-const processingJobs = new Map<number, {
+// Types of processing jobs
+interface BaseProcessingJob {
   id: number;
-  status: 'processing' | 'complete' | 'error';
+  status: 'queued' | 'processing' | 'complete' | 'error';
   progress: number;
+  created: Date;
+  updated: Date;
+  error?: string;
+  type: 'tts' | 'podcast';
+}
+
+// TTS-specific job data
+interface TTSProcessingJob extends BaseProcessingJob {
+  type: 'tts';
   totalChunks: number;
   audioFilePath?: string; // Path to the stored audio file instead of storing in memory
   audioUrl?: string;      // URL for client to access the audio
-  error?: string;
-}>();
+}
+
+// Podcast-specific job data
+interface PodcastProcessingJob extends BaseProcessingJob {
+  type: 'podcast';
+  step?: string;
+  subTopics?: string[];
+  script?: string;
+  searchResults?: string[];
+}
+
+// Combined type
+type ProcessingJob = TTSProcessingJob | PodcastProcessingJob;
+
+// Holds in-memory processing state for each job
+const processingJobs = new Map<number, ProcessingJob>();
 
 // Generate unique job IDs
 let nextJobId = 1;
+
+// Create a new processing job
+function createProcessingJob(type: 'tts' | 'podcast', initialData: Partial<ProcessingJob> = {}): number {
+  const jobId = nextJobId++;
+  const job: ProcessingJob = {
+    id: jobId,
+    status: 'queued',
+    progress: 0,
+    created: new Date(),
+    updated: new Date(),
+    type,
+    ...initialData
+  };
+  
+  if (type === 'tts') {
+    (job as TTSProcessingJob).totalChunks = initialData.totalChunks || 1;
+  }
+  
+  processingJobs.set(jobId, job);
+  return jobId;
+}
+
+// Update a processing job
+function updateProcessingJob(jobId: number, updates: Partial<ProcessingJob>): boolean {
+  const job = processingJobs.get(jobId);
+  if (!job) return false;
+  
+  Object.assign(job, { 
+    ...updates, 
+    updated: new Date() 
+  });
+  
+  processingJobs.set(jobId, job);
+  return true;
+}
 
 async function generateSpeechChunks(text: string, voice: string, onProgress?: (progress: number) => void) {
   const chunks = [];
@@ -168,8 +226,6 @@ async function generateSpeechChunks(text: string, voice: string, onProgress?: (p
 
 // Process long text in the background
 async function startBackgroundProcessing(data: any): Promise<number> {
-  const jobId = nextJobId++;
-  
   // Enforce maximum text length limit
   if (data.text.length > MAX_TEXT_LENGTH) {
     throw new Error(`Text is too long (${data.text.length} characters). Maximum allowed is ${MAX_TEXT_LENGTH} characters.`);
@@ -180,14 +236,13 @@ async function startBackgroundProcessing(data: any): Promise<number> {
   const audioFilename = `${uniqueId}.mp3`;
   const audioFilePath = path.join(AUDIO_DIR, audioFilename);
   
-  // Initialize job state
-  processingJobs.set(jobId, {
-    id: jobId,
+  // Create a new TTS processing job
+  const jobId = createProcessingJob('tts', {
     status: 'processing',
     progress: 0,
     totalChunks: Math.ceil(data.text.length / MAX_CHUNK_SIZE),
     audioFilePath
-  });
+  } as Partial<TTSProcessingJob>);
   
   // Start processing in the background
   (async () => {

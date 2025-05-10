@@ -235,9 +235,20 @@ export default function CreatePage() {
     }
   };
 
+  // Extended mode states
+  const [extendedModeStep, setExtendedModeStep] = useState<string | null>(null);
+  const [extendedModeProgress, setExtendedModeProgress] = useState(0);
+  const [extendedModeSubTopics, setExtendedModeSubTopics] = useState<string[]>([]);
+  
   // Mutation for podcast research and script generation
   const podcastResearchMutation = useMutation({
     mutationFn: async () => {
+      // For extended mode, set initial state
+      if (podcastExtendedMode) {
+        setExtendedModeStep("Analyzing topic and planning sub-topics");
+        setExtendedModeProgress(10);
+      }
+      
       return apiRequest("/api/podcast/research", {
         method: "POST",
         data: {
@@ -256,6 +267,15 @@ export default function CreatePage() {
     onSuccess: (data) => {
       setPodcastScript(data.script);
       
+      // Reset extended mode states
+      setExtendedModeStep(null);
+      setExtendedModeProgress(0);
+      
+      // Handle extended mode sub-topics if provided
+      if (data.isExtendedMode && data.subTopics) {
+        setExtendedModeSubTopics(data.subTopics);
+      }
+      
       // Store research results from the first part for subsequent parts
       if (currentPodcastPart === 1) {
         setPodcastResearchFinished(true);
@@ -264,8 +284,10 @@ export default function CreatePage() {
       }
       
       toast({
-        title: "Podcast script generated",
-        description: `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
+        title: podcastExtendedMode ? "Extended Podcast Generated" : "Podcast Script Generated",
+        description: podcastExtendedMode 
+          ? `Created comprehensive podcast with ${data.subTopics?.length || 0} research segments` 
+          : `Created script for part ${currentPodcastPart} of ${podcastMultipart ? podcastParts : 1}`
       });
       
       // Auto-generate audio for single-part podcast if enabled
@@ -1097,6 +1119,22 @@ export default function CreatePage() {
                     <div 
                       className="bg-primary h-2.5 rounded-full transition-all duration-500" 
                       style={{ width: `${(((processingPart || 1) - 1) / podcastParts) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Extended mode progress indicator */}
+              {podcastExtendedMode && extendedModeStep && (
+                <div className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded text-sm mt-2">
+                  <div className="mb-2">
+                    <div className="font-medium text-primary">Extended Podcast Mode</div>
+                    <div className="text-sm text-muted-foreground mt-1">{extendedModeStep}</div>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-primary h-2.5 rounded-full transition-all duration-500" 
+                      style={{ width: `${extendedModeProgress}%` }}
                     ></div>
                   </div>
                 </div>
