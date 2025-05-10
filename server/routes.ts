@@ -41,10 +41,13 @@ if (!fs.existsSync(AUDIO_DIR)) {
 // Maximum allowed text length (approximately 60 minutes of audio)
 const MAX_TEXT_LENGTH = 100000;
 
+// Job status enum 
+type JobStatus = 'queued' | 'processing' | 'complete' | 'error';
+
 // Types of processing jobs
 interface BaseProcessingJob {
   id: number;
-  status: 'queued' | 'processing' | 'complete' | 'error';
+  status: JobStatus;
   progress: number;
   created: Date;
   updated: Date;
@@ -79,35 +82,92 @@ const processingJobs = new Map<number, ProcessingJob>();
 let nextJobId = 1;
 
 // Create a new processing job
-function createProcessingJob(type: 'tts' | 'podcast', initialData: Partial<ProcessingJob> = {}): number {
+function createProcessingJob(type: 'tts' | 'podcast', initialData: Partial<TTSProcessingJob> | Partial<PodcastProcessingJob> = {}): number {
   const jobId = nextJobId++;
-  const job: ProcessingJob = {
+  
+  // Create base job with required fields
+  const baseJob = {
     id: jobId,
-    status: 'queued',
+    status: 'queued' as JobStatus,
     progress: 0,
     created: new Date(),
     updated: new Date(),
-    type,
-    ...initialData
+    error: initialData.error
   };
   
+  // Create specific job type
+  let job: ProcessingJob;
+  
   if (type === 'tts') {
-    (job as TTSProcessingJob).totalChunks = initialData.totalChunks || 1;
+    job = {
+      ...baseJob,
+      type: 'tts',
+      totalChunks: (initialData as Partial<TTSProcessingJob>).totalChunks || 1,
+      audioFilePath: (initialData as Partial<TTSProcessingJob>).audioFilePath,
+      audioUrl: (initialData as Partial<TTSProcessingJob>).audioUrl
+    };
+  } else {
+    job = {
+      ...baseJob,
+      type: 'podcast',
+      step: (initialData as Partial<PodcastProcessingJob>).step,
+      subTopics: (initialData as Partial<PodcastProcessingJob>).subTopics,
+      script: (initialData as Partial<PodcastProcessingJob>).script,
+      searchResults: (initialData as Partial<PodcastProcessingJob>).searchResults
+    };
   }
+  
+  // Override with any passed status or progress
+  if (initialData.status) job.status = initialData.status as JobStatus;
+  if (initialData.progress !== undefined) job.progress = initialData.progress;
   
   processingJobs.set(jobId, job);
   return jobId;
 }
 
 // Update a processing job
-function updateProcessingJob(jobId: number, updates: Partial<ProcessingJob>): boolean {
+function updateProcessingJob(jobId: number, updates: Partial<TTSProcessingJob> | Partial<PodcastProcessingJob>): boolean {
   const job = processingJobs.get(jobId);
   if (!job) return false;
   
-  Object.assign(job, { 
-    ...updates, 
-    updated: new Date() 
-  });
+  // Get only the common properties
+  const baseUpdates = {
+    status: updates.status,
+    progress: updates.progress,
+    error: updates.error,
+    updated: new Date()
+  };
+  
+  // Apply type-specific updates
+  if (job.type === 'tts' && 'audioUrl' in updates) {
+    (job as TTSProcessingJob).audioUrl = (updates as Partial<TTSProcessingJob>).audioUrl;
+  }
+  
+  if (job.type === 'tts' && 'audioFilePath' in updates) {
+    (job as TTSProcessingJob).audioFilePath = (updates as Partial<TTSProcessingJob>).audioFilePath;
+  }
+  
+  if (job.type === 'podcast' && 'step' in updates) {
+    (job as PodcastProcessingJob).step = (updates as Partial<PodcastProcessingJob>).step;
+  }
+  
+  if (job.type === 'podcast' && 'subTopics' in updates) {
+    (job as PodcastProcessingJob).subTopics = (updates as Partial<PodcastProcessingJob>).subTopics;
+  }
+  
+  if (job.type === 'podcast' && 'script' in updates) {
+    (job as PodcastProcessingJob).script = (updates as Partial<PodcastProcessingJob>).script;
+  }
+  
+  if (job.type === 'podcast' && 'searchResults' in updates) {
+    (job as PodcastProcessingJob).searchResults = (updates as Partial<PodcastProcessingJob>).searchResults;
+  }
+  
+  // Apply common updates if provided
+  if (baseUpdates.status) job.status = baseUpdates.status as JobStatus;
+  if (baseUpdates.progress !== undefined) job.progress = baseUpdates.progress;
+  if (baseUpdates.error !== undefined) job.error = baseUpdates.error;
+  job.updated = baseUpdates.updated;
   
   processingJobs.set(jobId, job);
   return true;
@@ -332,12 +392,13 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         
         // Update job with completion info
         const job = processingJobs.get(jobId);
-        if (job) {
-          job.status = 'complete';
-          job.progress = 100;
-          job.audioUrl = audioUrl;
-          job.audioFilePath = audioFilePath;
-          processingJobs.set(jobId, job);
+        if (job && job.type === 'tts') {
+          updateProcessingJob(jobId, {
+            status: 'complete' as const,
+            progress: 100,
+            audioUrl: audioUrl,
+            audioFilePath: audioFilePath
+          });
         }
         
         log(`Background job #${jobId} completed successfully with audio ID: ${audioFile.id}`);
@@ -346,24 +407,20 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         log(`Error saving audio file: ${errorMessage}`);
         
         // Update job with error info
-        const job = processingJobs.get(jobId);
-        if (job) {
-          job.status = 'error';
-          job.error = errorMessage;
-          processingJobs.set(jobId, job);
-        }
+        updateProcessingJob(jobId, {
+          status: 'error' as JobStatus,
+          error: errorMessage
+        });
         
         throw error;
       }
     } catch (error: any) {
       log(`Error in background job #${jobId}: ${error.message}`);
       
-      const job = processingJobs.get(jobId);
-      if (job) {
-        job.status = 'error';
-        job.error = error.message;
-        processingJobs.set(jobId, job);
-      }
+      updateProcessingJob(jobId, {
+        status: 'error' as JobStatus,
+        error: error.message
+      });
     }
   })();
   
