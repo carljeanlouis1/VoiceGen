@@ -319,7 +319,8 @@ export default function CreatePage() {
     const checkJobStatus = async () => {
       try {
         console.log(`Checking status for job ${processingJobId}`);
-        const response = await fetch(`/api/text-to-speech/status/${processingJobId}`);
+        // Using the new general-purpose job status endpoint
+        const response = await fetch(`/api/job-status/${processingJobId}`);
         if (!response.ok) throw new Error('Failed to check job status');
         
         const data = await response.json();

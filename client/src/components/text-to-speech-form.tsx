@@ -92,7 +92,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
   const checkJobStatus = async (jobId: number) => {
     try {
       console.log(`Checking status for job ${jobId}...`);
-      const response = await fetch(`/api/text-to-speech/status/${jobId}`);
+      // Using the new general-purpose job status endpoint
+      const response = await fetch(`/api/job-status/${jobId}`);
       
       if (!response.ok) {
         console.error(`Failed to fetch job status: ${response.status}`);
