@@ -58,5 +58,20 @@ export const podcastScriptSchema = z.object({
   extendedMode: z.boolean().default(false), // Extended podcast mode flag
 });
 
+// Content research and generation schema
+export const contentResearchSchema = z.object({
+  topic: z.string().min(1, "Topic is required"),
+  contentType: z.string(), // "story", "article", "tedTalk", "custom"
+  systemPrompt: z.string(),
+  temperature: z.number().min(0).max(1).default(0.7),
+  maxOutputTokens: z.number().min(100).max(8000).default(4000),
+  segment: z.number().default(1),
+  totalSegments: z.number().default(1),
+  previousContent: z.string().optional(),
+  searchResults: z.string().optional(),
+  extendedMode: z.boolean().default(false),
+  images: z.array(z.string()).optional(),
+});
+
 // Maximum characters per chunk for OpenAI's TTS
 export const MAX_CHUNK_SIZE = 4000;

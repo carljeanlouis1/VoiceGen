@@ -1119,7 +1119,7 @@ export default function CreatePage() {
                       </p>
                     </div>
                     
-                    <Alert variant="info" className="bg-primary/5">
+                    <Alert className="bg-primary/5">
                       <InfoIcon className="h-4 w-4" />
                       <AlertTitle>Enhanced Research</AlertTitle>
                       <AlertDescription className="text-xs">

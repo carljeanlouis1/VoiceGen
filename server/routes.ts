@@ -1075,6 +1075,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Content research and generation endpoint with Perplexity search integration
+  app.post("/api/content/research", async (req, res) => {
+    try {
+      log('Received content research request');
+      const data = contentResearchSchema.parse(req.body);
+      
+      // Check if extended mode is enabled
+      if (data.extendedMode && !data.searchResults && data.segment === 1) {
+        log(`Starting extended content research mode for topic: "${data.topic}"`);
+        return await generateExtendedContent(data, res);
+      }
+      
+      // If we already have search results (subsequent segments)
+      if (data.extendedMode && data.searchResults && data.segment > 1) {
+        log(`Generating content segment ${data.segment} of ${data.totalSegments}`);
+        
+        // Create a job for segment generation
+        const jobId = createProcessingJob('podcast', {
+          type: 'podcast',
+          step: `Generating content segment ${data.segment} of ${data.totalSegments}`,
+          progress: Math.floor((data.segment - 1) / data.totalSegments * 100)
+        });
+        
+        // Generate content with Claude using search results
+        try {
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY
+          });
+          
+          // Create a prompt that includes search results and previous content
+          const segmentPrompt = `
+          I need you to create segment ${data.segment} of ${data.totalSegments} for the following content on "${data.topic}".
+          
+          ${data.previousContent ? `Here's what you've written so far: 
+          ${data.previousContent}` : ''}
+          
+          Research information to incorporate:
+          ${data.searchResults}
+          
+          The content should follow this system instruction:
+          ${data.systemPrompt}
+          
+          Continue the content naturally from what was already written, maintaining the same style and tone.
+          Segment ${data.segment} should flow seamlessly from the previous segments while bringing in fresh insights.
+          `;
+          
+          // Update job status
+          updateProcessingJob(jobId, {
+            step: `Generating content with Claude (segment ${data.segment}/${data.totalSegments})`,
+            progress: Math.floor((data.segment - 0.5) / data.totalSegments * 100)
+          });
+          
+          // Generate content with Claude
+          const message = await anthropic.messages.create({
+            model: "claude-3-7-sonnet-20250219",
+            max_tokens: data.maxOutputTokens,
+            temperature: data.temperature,
+            system: "You are an expert content creator named Arion Vale. You craft engaging, authentic, and insightful content.",
+            messages: [{ role: "user", content: segmentPrompt }]
+          });
+          
+          // Extract the generated content
+          const generatedContent = message.content[0].text;
+          
+          // Update job status to complete
+          updateProcessingJob(jobId, {
+            status: 'complete',
+            progress: Math.floor(data.segment / data.totalSegments * 100),
+            script: generatedContent
+          });
+          
+          return res.json({
+            jobId,
+            content: generatedContent,
+            segment: data.segment,
+            totalSegments: data.totalSegments
+          });
+        } catch (error) {
+          // Handle error
+          updateProcessingJob(jobId, {
+            status: 'error',
+            error: error.message || "Failed to generate content segment"
+          });
+          
+          return res.status(500).json({
+            error: `Failed to generate content segment: ${error.message}`
+          });
+        }
+      }
+      
+      // For non-extended mode or standard content generation
+      log(`Generating standard content for topic: "${data.topic}"`);
+      
+      // Use Gemini for image support when images are provided
+      if (data.images && data.images.length > 0) {
+        try {
+          const result = await generateGeminiContent({
+            prompt: data.topic,
+            systemPrompt: data.systemPrompt,
+            temperature: data.temperature,
+            maxOutputTokens: data.maxOutputTokens,
+            images: data.images
+          });
+          
+          return res.json({
+            content: result.text,
+            segment: 1,
+            totalSegments: 1
+          });
+        } catch (error) {
+          return res.status(500).json({
+            error: `Failed to generate content with Gemini: ${error.message}`
+          });
+        }
+      } else {
+        // Use Claude for text-only content (better quality)
+        try {
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY
+          });
+          
+          const message = await anthropic.messages.create({
+            model: "claude-3-7-sonnet-20250219",
+            max_tokens: data.maxOutputTokens,
+            temperature: data.temperature,
+            system: "You are an expert content creator named Arion Vale. You craft engaging, authentic, and insightful content.",
+            messages: [
+              { 
+                role: "user", 
+                content: `
+                  ${data.systemPrompt}
+                  
+                  Topic: ${data.topic}
+                  
+                  Please create ${data.contentType} content based on this topic.
+                `
+              }
+            ]
+          });
+          
+          return res.json({
+            content: message.content[0].text,
+            segment: 1,
+            totalSegments: 1
+          });
+        } catch (error) {
+          return res.status(500).json({
+            error: `Failed to generate content with Claude: ${error.message}`
+          });
+        }
+      }
+    } catch (error) {
+      log(`Error in /api/content/research: ${error.message}`);
+      return res.status(500).json({
+        error: `Failed to process content research request: ${error.message}`
+      });
+    }
+  });
+  
   // New endpoint for in-page content chat with Perplexity Sonar Pro
   app.post("/api/content-chat", async (req, res) => {
     try {
@@ -2084,6 +2243,177 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
     } catch (error: any) {
       log(`Error generating extended podcast segments: ${error.message}`);
       throw new Error(`Failed to generate podcast segments: ${error.message}`);
+    }
+  }
+  
+  // Function to generate extended content with web research
+  async function generateExtendedContent(
+    data: z.infer<typeof contentResearchSchema>,
+    res: Response
+  ) {
+    try {
+      // Create a job for extended content generation
+      const jobId = createProcessingJob('podcast', {
+        type: 'podcast',
+        step: 'Analyzing topic and planning sub-topics',
+        progress: 5
+      });
+      
+      // Check if Perplexity API key is available
+      if (!process.env.PERPLEXITY_API_KEY) {
+        updateProcessingJob(jobId, {
+          status: 'error',
+          error: 'Perplexity API key is not available. Please add your PERPLEXITY_API_KEY to the environment variables.'
+        });
+        return res.status(500).json({
+          error: 'Perplexity API key is missing'
+        });
+      }
+      
+      // Step 1: Generate sub-topics for research
+      log(`Generating sub-topics for content on: ${data.topic}`);
+      updateProcessingJob(jobId, {
+        step: 'Generating research sub-topics',
+        progress: 10
+      });
+      
+      // Generate sub-topics using Claude
+      try {
+        const anthropic = new Anthropic({
+          apiKey: process.env.ANTHROPIC_API_KEY
+        });
+        
+        const subTopicPrompt = `
+        I need to create a comprehensive ${data.contentType} on "${data.topic}".
+        
+        To research this thoroughly, I need a list of ${data.totalSegments} specific sub-topics or angles to explore.
+        
+        Each sub-topic should:
+        1. Cover a distinct aspect of the main topic
+        2. Be specific enough for focused research
+        3. Together, provide comprehensive coverage
+        4. Be arranged in a logical sequence
+        
+        Return ONLY the numbered list of ${data.totalSegments} search queries, one per line. 
+        No introduction or explanation needed.
+        `;
+        
+        const message = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219",
+          max_tokens: 500,
+          temperature: 0.5,
+          system: "You are a research planning assistant who helps formulate effective research questions.",
+          messages: [{ role: "user", content: subTopicPrompt }]
+        });
+        
+        // Extract sub-topics
+        const subTopicsContent = message.content[0].text.trim();
+        const subTopics = subTopicsContent
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .map(line => line.replace(/^\d+[\.\)]\s*/, '').trim());
+        
+        if (subTopics.length === 0) {
+          throw new Error('Failed to generate valid sub-topics');
+        }
+        
+        // Adjust array to match requested segments
+        const adjustedSubTopics = subTopics.slice(0, data.totalSegments);
+        
+        // Update job with sub-topics
+        updateProcessingJob(jobId, {
+          step: 'Researching sub-topics with Perplexity Sonar Pro',
+          progress: 15,
+          subTopics: adjustedSubTopics
+        });
+        
+        // Step 2: Research each sub-topic with Perplexity
+        log(`Researching ${adjustedSubTopics.length} sub-topics with Perplexity`);
+        
+        // Prepare research queries by combining main topic with each sub-topic
+        const researchQueries = adjustedSubTopics.map(
+          subTopic => `${data.topic}: ${subTopic}`
+        );
+        
+        // Execute searches for all sub-topics
+        const allResearchResults = await executeMultipleSearches(researchQueries);
+        const combinedResearch = allResearchResults.join('\n\n=== NEXT RESEARCH SECTION ===\n\n');
+        
+        // Update job with research results
+        updateProcessingJob(jobId, {
+          step: 'Generating content based on research',
+          progress: 40,
+          searchResults: combinedResearch
+        });
+        
+        // Step 3: Generate the first segment
+        log(`Generating first content segment for "${data.topic}"`);
+        
+        // Create prompt for the first segment
+        const firstSegmentPrompt = `
+        I need you to create the first segment of a ${data.totalSegments}-part ${data.contentType} about "${data.topic}".
+        
+        The content should follow these instructions:
+        ${data.systemPrompt}
+        
+        Here's the research information to incorporate:
+        ${combinedResearch.substring(0, 12000)} # Limit the context for the first segment
+        
+        This is segment 1 of ${data.totalSegments}, so it should:
+        - Start with an engaging introduction to the overall topic
+        - Primarily focus on ${adjustedSubTopics[0]}
+        - Set up a natural transition to the next segment
+        - Be coherent and well-structured on its own
+        
+        Write the content from scratch in your own words while integrating insights from the research.
+        `;
+        
+        // Generate first segment with Claude
+        const firstSegmentMessage = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219",
+          max_tokens: data.maxOutputTokens,
+          temperature: data.temperature,
+          system: "You are an expert content creator named Arion Vale. You craft engaging, authentic, and insightful content.",
+          messages: [{ role: "user", content: firstSegmentPrompt }]
+        });
+        
+        // Extract the generated content
+        const firstSegmentContent = firstSegmentMessage.content[0].text;
+        
+        // Update job status
+        updateProcessingJob(jobId, {
+          status: 'complete',
+          progress: 50,
+          script: firstSegmentContent
+        });
+        
+        // Return the results
+        return res.json({
+          jobId,
+          content: firstSegmentContent,
+          subTopics: adjustedSubTopics,
+          researchResults: combinedResearch,
+          segment: 1,
+          totalSegments: data.totalSegments
+        });
+        
+      } catch (error) {
+        // Handle error
+        updateProcessingJob(jobId, {
+          status: 'error',
+          error: error.message || "Failed to generate extended content"
+        });
+        
+        return res.status(500).json({
+          error: `Failed to generate extended content: ${error.message}`
+        });
+      }
+    } catch (error) {
+      log(`Error in generateExtendedContent: ${error.message}`);
+      return res.status(500).json({
+        error: `Failed to generate extended content: ${error.message}`
+      });
     }
   }
 
