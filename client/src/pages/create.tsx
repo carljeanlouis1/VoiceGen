@@ -632,8 +632,15 @@ export default function CreatePage() {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [processingProgress, setProcessingProgress] = useState(0);
   
-  // Simple chat visibility state - all other chat state managed by the ContentChat component
+  // Chat state
   const [showContentChat, setShowContentChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{role: "user" | "assistant" | "system", content: string}[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatCitations, setChatCitations] = useState<string[]>([]);
+  
+  // Reference for auto-scrolling the chat
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   
   // Helper function to get the appropriate content based on mode
   const getCurrentContent = () => {
@@ -649,13 +656,15 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Simple toggle function for chat visibility
+  // Toggle chat interface and initialize chat if needed
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    
+    console.log("Toggle chat called, current state:", showContentChat);
     
     // Check if there's content to chat about
     if (!hasContentToChat()) {
@@ -667,11 +676,94 @@ export default function CreatePage() {
       return; // Don't proceed if no content
     }
     
-    // Just toggle the visibility state - all other chat logic is in the ContentChat component
+    // Initialize with a system message when first opening the chat
+    if (!showContentChat && chatMessages.length === 0) {
+      const contentType = createMode === "podcast" ? "podcast script" : "generated content";
+      setChatMessages([
+        {
+          role: "system",
+          content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
+        }
+      ]);
+    }
+    
+    // Toggle the chat visibility
     setShowContentChat(prev => !prev);
+    
+    // Log for debugging
+    console.log("Chat should now be:", !showContentChat);
   };
   
-  // Chat functionality is now handled by the ContentChat component
+  // Handle chat submission
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    try {
+      // Add user message to chat
+      const userMessage = { role: "user" as const, content: chatInput };
+      setChatMessages(prev => [...prev, userMessage]);
+      setChatInput("");
+      setIsChatLoading(true);
+      
+      // Get content and title based on mode
+      const content = getCurrentContent();
+      const title = createMode === "podcast" ? podcastTopic || "podcast" : prompt || "content";
+      
+      // Call API
+      const response = await fetch("/api/content-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMessage].filter(m => m.role !== "system"),
+          content,
+          contentTitle: title
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Add response to chat
+      setChatMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: data.response 
+      }]);
+      
+      // Update citations if available
+      if (data.citations) {
+        setChatCitations(data.citations);
+      }
+      
+    } catch (error) {
+      console.error("Chat error:", error);
+      
+      // Add error message to chat
+      setChatMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: "Sorry, there was an error processing your request. Please try again." 
+      }]);
+      
+      toast({
+        title: "Chat Error",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive"
+      });
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+  
+  // Auto-scroll chat when messages change
+  useEffect(() => {
+    if (chatScrollRef.current && chatMessages.length > 0) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
   
   // Function to navigate to chat with podcast content (legacy, now using in-page chat)
   const navigateToChatWithPodcast = () => {
@@ -1883,7 +1975,6 @@ export default function CreatePage() {
                       
                       // Force chat to show with a message
                       setShowContentChat(true);
-                      setChatKey(k => k + 100);
                       
                       // Add a debug message
                       const newMessages = [
@@ -1909,13 +2000,117 @@ export default function CreatePage() {
           )}
           
           {/* Chat Interface */}
-          {/* New ContentChat component that handles all chat functionality */}
-          <ContentChat 
-            content={getCurrentContent()}
-            contentType={createMode === "podcast" ? "podcast script" : "generated content"}
-            isVisible={showContentChat}
-            onClose={() => setShowContentChat(false)}
-          />
+          {showContentChat && (
+            <Card className="mt-4" data-testid="chat-interface">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Sparkles className="h-5 w-5 mr-2 text-primary" />
+                    <span>Chat with Perplexity Sonar</span>
+                    <div className="ml-2 text-xs px-1.5 py-0.5 bg-primary/10 rounded-md">
+                      Web search enabled
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowContentChat(false)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Ask questions about your {createMode === "podcast" ? "podcast script" : "generated content"} or request additional information
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  className="h-[300px] overflow-y-auto border rounded-md p-3 mb-3"
+                  ref={chatScrollRef}
+                >
+                  {chatMessages.length <= 1 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-4">
+                      <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
+                      <h3 className="font-medium mb-1">Chat about your {createMode === "podcast" ? "podcast script" : "generated content"}</h3>
+                      <p className="text-sm">
+                        Ask questions, request summaries, or get related information from the web using Perplexity's Sonar Pro.
+                      </p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, index) => {
+                      if (msg.role === 'system') return null;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={`mb-3 p-3 rounded-lg ${
+                            msg.role === 'assistant' 
+                              ? 'bg-muted' 
+                              : 'bg-primary text-primary-foreground'
+                          }`}
+                        >
+                          <div className="text-xs mb-1">
+                            {msg.role === 'assistant' ? 'Perplexity Sonar' : 'You'}
+                          </div>
+                          <div className="whitespace-pre-line">{msg.content}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                  
+                  {isChatLoading && (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span className="text-sm">Perplexity Sonar is thinking...</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Chat input form */}
+                <form className="flex gap-2" onSubmit={handleChatSubmit}>
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask about the content or get related information..."
+                    className="flex-1"
+                    disabled={isChatLoading}
+                  />
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={!chatInput.trim() || isChatLoading}
+                  >
+                    {isChatLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </form>
+                
+                {/* Citations */}
+                {chatCitations.length > 0 && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <div className="font-medium mb-1">Sources:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {chatCitations.slice(0, 5).map((cite, i) => (
+                        <div key={i} className="max-w-[200px] truncate bg-muted px-1.5 py-0.5 rounded">
+                          {cite}
+                        </div>
+                      ))}
+                      {chatCitations.length > 5 && (
+                        <div className="bg-muted px-1.5 py-0.5 rounded">
+                          +{chatCitations.length - 5} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
           
           {/* Standalone Audio Player Card - shown when there's no script but audio exists (e.g., after page reset) */}
           {!podcastScript && generatedAudioUrl && (
