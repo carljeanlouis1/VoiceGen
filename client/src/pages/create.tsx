@@ -664,10 +664,15 @@ export default function CreatePage() {
       e.stopPropagation();
     }
     
+    console.log("Toggle chat called, current mode:", createMode);
+    console.log("Has content:", hasContentToChat());
+    console.log("Current content:", getCurrentContent().substring(0, 50) + "...");
+    
     try {
       if (!showContentChat && chatMessages.length === 0) {
         // Check if there's content to chat about
         if (hasContentToChat()) {
+          console.log("Initializing chat with system message");
           // Initialize with a system message when first opening the chat
           const contentType = createMode === "podcast" ? "podcast script" : "generated content";
           setChatMessages([
@@ -677,6 +682,7 @@ export default function CreatePage() {
             }
           ]);
         } else {
+          console.log("No content to chat about");
           toast({
             title: "No content to chat about",
             description: "Please generate some content first before starting a chat.",
@@ -685,6 +691,7 @@ export default function CreatePage() {
           return; // Don't open chat if there's no content
         }
       }
+      console.log("Setting showContentChat to:", !showContentChat);
       setShowContentChat(prevState => !prevState);
     } catch (error) {
       console.error("Error toggling chat interface:", error);
@@ -1494,7 +1501,10 @@ export default function CreatePage() {
                     </Button>
                     <Button
                       variant={showContentChat ? "default" : "outline"}
-                      onClick={toggleContentChat}
+                      onClick={(e) => {
+                        console.log("Chat button clicked");
+                        toggleContentChat(e);
+                      }}
                     >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       {showContentChat ? "Hide Chat" : "Chat with Content"}
@@ -2022,6 +2032,11 @@ export default function CreatePage() {
           )}
           
           {/* Chat Interface - shown when showContentChat is true and there's content */}
+          {/* Debug log for chat interface rendering */}
+          {(() => {
+            console.log("Chat interface rendering condition:", {showContentChat, hasContent: hasContentToChat()});
+            return null;
+          })()}
           {showContentChat && hasContentToChat() && (
             <Card className="mt-4">
               <CardHeader className="pb-2">
