@@ -657,7 +657,7 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Toggle the in-page chat interface - completely rewritten for simplicity and reliability
+  // Toggle the in-page chat interface - complete rewrite with force trigger
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
@@ -665,7 +665,8 @@ export default function CreatePage() {
       e.stopPropagation();
     }
     
-    console.log("toggleContentChat called");
+    console.log("----- TOGGLE CHAT FUNCTION CALLED -----");
+    console.log("Current state:", {showContentChat, createMode, hasContent: hasContentToChat()});
     
     // Check if there's content to chat about
     if (!hasContentToChat()) {
@@ -677,27 +678,41 @@ export default function CreatePage() {
       return; // Don't proceed if no content
     }
     
+    // For debugging - forcing layout
+    document.body.classList.add('force-reflow');
+    setTimeout(() => {
+      document.body.classList.remove('force-reflow');
+    }, 0);
+    
     // Initialize with a system message when first opening the chat
     if (!showContentChat && chatMessages.length === 0) {
       const contentType = createMode === "podcast" ? "podcast script" : "generated content";
-      setChatMessages([
-        {
-          role: "system",
-          content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
-        }
-      ]);
+      const systemMsg = {
+        role: "system" as const,
+        content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
+      };
+      console.log("Adding system message:", systemMsg);
+      setChatMessages([systemMsg]);
     }
     
-    // Toggle the chat state - use function form to ensure we get the latest state
-    setShowContentChat(current => {
-      const newState = !current;
-      console.log(`Chat visibility set to: ${newState ? 'visible' : 'hidden'}`);
-      
-      // Force a re-render of the chat interface with a new key
-      setChatKey(prevKey => prevKey + 1);
-      
-      return newState;
-    });
+    // Instead of toggling, we'll explicitly set the state to ensure it updates
+    const newChatState = !showContentChat;
+    console.log(`Explicitly setting showContentChat to:`, newChatState);
+    
+    // Force a re-render with a new key
+    setChatKey(k => k + 1);
+    
+    // Set the state
+    setShowContentChat(newChatState);
+    
+    // For debugging
+    console.log("After state update, new expected state:", newChatState);
+    console.log("----- END TOGGLE CHAT FUNCTION -----");
+    
+    // Additional debugging - double check the state after a short delay
+    setTimeout(() => {
+      console.log("DELAYED CHECK - showContentChat value:", !showContentChat ? "Still old value" : "Updated to new value");
+    }, 100);
   };
   
   // Handle sending a message in the chat
@@ -815,6 +830,23 @@ export default function CreatePage() {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [chatMessages]);
+  
+  // Monitor changes to showContentChat state and force updates if needed
+  useEffect(() => {
+    console.log("showContentChat changed to:", showContentChat);
+    
+    // Force update when chat is opened
+    if (showContentChat) {
+      // Force a re-render of the chat interface
+      setChatKey(prevKey => prevKey + 1);
+      
+      // Check if the chat interface is actually rendered after a delay
+      setTimeout(() => {
+        const chatInterface = document.querySelector('[data-testid="chat-interface"]');
+        console.log("Chat interface in DOM:", !!chatInterface);
+      }, 500);
+    }
+  }, [showContentChat]);
   
   // Function to navigate to chat with podcast content (legacy, now using in-page chat)
   const navigateToChatWithPodcast = () => {
@@ -2013,7 +2045,7 @@ export default function CreatePage() {
           
           {/* Chat Interface */}
           {showContentChat && (
-            <Card className="mt-4">
+            <Card className="mt-4" data-testid="chat-interface">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <div className="flex items-center">
