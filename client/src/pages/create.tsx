@@ -656,7 +656,7 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Toggle the in-page chat interface
+  // Toggle the in-page chat interface - completely rewritten for simplicity
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
@@ -664,58 +664,33 @@ export default function CreatePage() {
       e.stopPropagation();
     }
     
-    console.log("----- TOGGLE CHAT DEBUG -----");
-    console.log("Toggle chat called, current mode:", createMode);
-    console.log("Current showContentChat state:", showContentChat);
-    console.log("Has content to chat:", hasContentToChat());
-    
-    let contentSample = "";
-    try {
-      contentSample = getCurrentContent().substring(0, 50) + "...";
-    } catch (err) {
-      contentSample = "Error getting content sample";
-    }
-    console.log("Content sample:", contentSample);
-    
-    try {
-      // First, make sure the user has content to chat about
-      if (!hasContentToChat()) {
-        console.log("No content found, showing toast and returning");
-        toast({
-          title: "No content to chat about",
-          description: "Please generate some content first before starting a chat.",
-          variant: "destructive"
-        });
-        return; // Don't toggle chat if there's no content
-      }
-      
-      // If we're opening the chat and there are no messages, initialize with a system message
-      if (!showContentChat && chatMessages.length === 0) {
-        console.log("Initializing chat with system message");
-        const contentType = createMode === "podcast" ? "podcast script" : "generated content";
-        setChatMessages([
-          {
-            role: "system",
-            content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
-          }
-        ]);
-      }
-      
-      // Toggle the chat display state
-      console.log("Setting showContentChat to:", !showContentChat);
-      setShowContentChat(!showContentChat);
-      
-      // After toggling, log the expected new state
-      console.log("Chat should now be:", !showContentChat ? "visible" : "hidden");
-      console.log("----- END DEBUG -----");
-    } catch (error) {
-      console.error("Error toggling chat interface:", error);
+    // Check if there's content to chat about
+    if (!hasContentToChat()) {
       toast({
-        title: "Error",
-        description: "There was a problem opening the chat interface. Please try again.",
+        title: "No content to chat about",
+        description: "Please generate some content first before starting a chat.",
         variant: "destructive"
       });
+      return; // Don't proceed if no content
     }
+    
+    // Initialize with a system message when first opening the chat
+    if (!showContentChat && chatMessages.length === 0) {
+      const contentType = createMode === "podcast" ? "podcast script" : "generated content";
+      setChatMessages([
+        {
+          role: "system",
+          content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
+        }
+      ]);
+    }
+    
+    // Toggle the chat state - use direct assignment instead of function form
+    const newState = !showContentChat;
+    setShowContentChat(newState);
+    
+    // Log what happened
+    console.log(`Chat visibility set to: ${newState ? 'visible' : 'hidden'}`);
   };
   
   // Handle sending a message in the chat
@@ -2049,23 +2024,7 @@ export default function CreatePage() {
                     variant={showContentChat ? "default" : "outline"}
                     className="ml-2"
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      
-                      // Initialize system message if opening chat for the first time
-                      if (!showContentChat && chatMessages.length === 0) {
-                        setChatMessages([
-                          {
-                            role: "system",
-                            content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
-                          }
-                        ]);
-                      }
-                      
-                      // Toggle the chat visibility
-                      setShowContentChat(current => !current);
-                    }}
+                    onClick={toggleContentChat}
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {showContentChat ? "Hide Chat" : "Chat with Content"}
@@ -2075,17 +2034,8 @@ export default function CreatePage() {
             </Card>
           )}
           
-          {/* Chat Interface - shown when showContentChat is true and there's content */}
-          {/* Debug log for chat interface rendering */}
-          {(() => {
-            console.log("----- CHAT INTERFACE RENDER CHECK -----");
-            console.log("showContentChat:", showContentChat);
-            console.log("hasContentToChat():", hasContentToChat());
-            console.log("createMode:", createMode);
-            console.log("Should render chat:", showContentChat && hasContentToChat());
-            return null;
-          })()}
-          {showContentChat && hasContentToChat() && (
+          {/* Chat Interface */}
+          {showContentChat && (
             <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
