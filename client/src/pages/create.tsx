@@ -270,6 +270,16 @@ export default function CreatePage() {
       return;
     }
     
+    // Verify text isn't too large
+    if (text.length > 100000) {
+      toast({
+        title: "Text too large",
+        description: "Text exceeds 100,000 characters. Please reduce the size or split into multiple parts.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setTtsProcessing(true);
     setTtsComplete(false);
     setTtsAudioUrl(null);
@@ -1425,7 +1435,7 @@ export default function CreatePage() {
                   <div className="flex gap-2">
                     <Select
                       value={ttsVoice}
-                      onValueChange={setTtsVoice}
+                      onValueChange={(value) => setTtsVoice(value as typeof AVAILABLE_VOICES[number])}
                     >
                       <SelectTrigger className="w-[120px]">
                         <SelectValue placeholder="Select voice" />

@@ -2337,6 +2337,20 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
     res: Response
   ) {
     try {
+      // Add memory optimization - limit content size and segments
+      if (data.extendedMode && data.totalSegments > 5) {
+        return res.status(400).json({
+          error: "Maximum of 5 segments allowed to prevent server overload"
+        });
+      }
+      
+      // Ensure prompt isn't too long
+      if (data.prompt && data.prompt.length > 5000) {
+        return res.status(400).json({
+          error: "Prompt exceeds maximum length of 5,000 characters"
+        });
+      }
+    
       // Create a job for extended content generation
       const jobId = createProcessingJob('podcast', {
         type: 'podcast',
