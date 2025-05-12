@@ -8,10 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
   Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
-  Volume2, Download, Square
+  Volume2, Download, Square, Info as InfoIcon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -1087,6 +1088,50 @@ export default function CreatePage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Extended Research Mode Toggle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="extended-research-mode" className="text-base font-medium mb-1 block">Extended Research Mode</Label>
+                    <p className="text-xs text-muted-foreground">Enables web research and multi-segment content generation</p>
+                  </div>
+                  <Switch
+                    checked={contentExtendedMode}
+                    onCheckedChange={setContentExtendedMode}
+                    id="extended-research-mode"
+                  />
+                </div>
+                
+                {contentExtendedMode && (
+                  <div className="pt-2 pb-2 space-y-3 border rounded-md p-3 bg-muted/10">
+                    <div>
+                      <Label htmlFor="content-segments" className="mb-1 block">Content Segments: {contentSegments}</Label>
+                      <Slider
+                        id="content-segments"
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={[contentSegments]}
+                        onValueChange={(value) => setContentSegments(value[0])}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        More segments create longer content with more thorough research
+                      </p>
+                    </div>
+                    
+                    <Alert variant="info" className="bg-primary/5">
+                      <InfoIcon className="h-4 w-4" />
+                      <AlertTitle>Enhanced Research</AlertTitle>
+                      <AlertDescription className="text-xs">
+                        Uses Perplexity Sonar Pro to research your topic in real-time and generate comprehensive content based on the latest information.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </div>
+              
+              <Separator />
+              
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label htmlFor="temperature">Temperature: {temperature}</Label>
@@ -1127,18 +1172,20 @@ export default function CreatePage() {
             <CardFooter>
               <Button
                 className="w-full"
-                onClick={() => generationMutation.mutate()}
-                disabled={prompt.trim() === "" || generationMutation.isPending}
+                onClick={() => contentResearchMutation.mutate()}
+                disabled={prompt.trim() === "" || contentResearchMutation.isPending}
               >
-                {generationMutation.isPending ? (
+                {contentResearchMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
+                    {contentExtendedMode 
+                      ? `${contentResearchStep || 'Researching & Generating'}... ${contentGenerationProgress > 0 ? `(${contentGenerationProgress}%)` : ''}`
+                      : 'Generating Content...'}
                   </>
                 ) : (
                   <>
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Content
+                    {contentExtendedMode ? 'Research & Generate Content' : 'Generate Content'}
                   </>
                 )}
               </Button>
