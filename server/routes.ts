@@ -1056,6 +1056,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint for in-page content chat with Perplexity Sonar Pro
+  app.post("/api/content-chat", async (req, res) => {
+    try {
+      const schema = z.object({
+        messages: z.array(z.object({
+          role: z.enum(["user", "assistant", "system"]),
+          content: z.string()
+        })),
+        content: z.string(),
+        contentTitle: z.string().optional()
+      });
+
+      const validation = schema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data", 
+          details: validation.error.format() 
+        });
+      }
+      
+      const { messages, content, contentTitle } = validation.data;
+      
+      // Early validation
+      if (!messages || messages.length === 0) {
+        return res.status(400).json({ error: "Messages must be a non-empty array" });
+      }
+      
+      // Check if Perplexity API key is available
+      if (!process.env.PERPLEXITY_API_KEY) {
+        log("PERPLEXITY_API_KEY environment variable is missing");
+        throw new Error("PERPLEXITY_API_KEY is required for content chat");
+      }
+      
+      // Get the user's latest message
+      const userMessage = messages[messages.length - 1].content;
+      
+      // Build context from previous messages if any
+      let conversationContext = "";
+      if (messages.length > 1) {
+        const previousMessages = messages.slice(0, -1);
+        previousMessages.forEach(msg => {
+          const role = msg.role === "user" ? "User" : "Assistant";
+          conversationContext += `${role}: ${msg.content}\n\n`;
+        });
+      }
+      
+      // Create the system prompt with content context
+      const systemPrompt = `You are an AI assistant discussing ${contentTitle || "content"} with the user.
+      
+CONTENT TO DISCUSS:
+${content}
+
+CONVERSATION HISTORY:
+${conversationContext}
+
+When responding to the user:
+1. Draw primarily from the provided content when answering questions about it
+2. If the user asks about something not in the content, you may search the web for current information
+3. Make it clear what information comes from the provided content and what comes from web search
+4. Be comprehensive, accurate, and helpful
+5. For topics requiring current information, leverage your web search capability`;
+      
+      // Create request body for Perplexity
+      const requestBody = {
+        model: "llama-3.1-sonar-large-128k-online", // Using Sonar model with web search capabilities
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: userMessage
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.2,
+        top_p: 0.9,
+        web_search_options: { 
+          search_context_size: "high",
+          search_depth: "deep"
+        },
+        search_recency_filter: "week", // Using more recent results for up-to-date information
+        return_related_questions: true,
+        stream: false
+      };
+      
+      log('Sending content chat request to Perplexity API...');
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.PERPLEXITY_API_KEY}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      // Log response status
+      log(`Perplexity API response status: ${perplexityResponse.status}`);
+      
+      // If there's an error, return it directly to the client
+      if (!perplexityResponse.ok) {
+        const errorText = await perplexityResponse.text();
+        log(`Perplexity API error details: ${errorText.substring(0, 200)}...`);
+        
+        return res.status(perplexityResponse.status).json({
+          error: `Perplexity API error: ${perplexityResponse.status}`,
+          message: `Failed to get content chat response: ${errorText}`
+        });
+      }
+      
+      const data = await perplexityResponse.json();
+      log('Successfully received content chat response from Perplexity API');
+      
+      // Extract content from the response
+      const answer = data.choices[0].message.content;
+      const citations = data.citations || [];
+      const relatedQuestions = data.related_questions || [];
+      
+      // Return formatted response to client
+      res.json({
+        response: answer,
+        citations,
+        relatedQuestions,
+        model: "perplexity-sonar"
+      });
+    } catch (error: any) {
+      log(`Error in /api/content-chat: ${error.message}`);
+      res.status(500).json({ 
+        error: "Failed to process content chat request", 
+        message: error.message 
+      });
+    }
+  });
+
   app.post("/api/search", async (req, res) => {
     try {
       const schema = z.object({

@@ -311,20 +311,105 @@ export default function CreatePage() {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [processingProgress, setProcessingProgress] = useState(0);
   
-  // Function to navigate to chat with podcast content
-  const navigateToChatWithPodcast = () => {
-    if (podcastScript) {
-      // Store podcast content in localStorage temporarily
-      localStorage.setItem('podcastContent', podcastScript);
-      localStorage.setItem('podcastTitle', podcastTopic);
-      // Navigate to chat page
-      navigate('/chat?source=podcast');
+  // Content chat states
+  const [showContentChat, setShowContentChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{role: "user" | "assistant" | "system", content: string}>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatCitations, setChatCitations] = useState<string[]>([]);
+  const [chatRelatedQuestions, setChatRelatedQuestions] = useState<string[]>([]);
+  
+  // Reference for auto-scrolling the chat
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Toggle the in-page chat interface
+  const toggleContentChat = () => {
+    if (!showContentChat && podcastScript && chatMessages.length === 0) {
+      // Initialize with a system message when first opening the chat
+      setChatMessages([
+        {
+          role: "system",
+          content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
+        }
+      ]);
+    }
+    setShowContentChat(!showContentChat);
+  };
+  
+  // Handle sending a message in the chat
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!chatInput.trim() || isChatLoading || !podcastScript) return;
+    
+    // Add user message to chat
+    const userMessage = { role: "user" as const, content: chatInput };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+    setIsChatLoading(true);
+    
+    try {
+      const response = await fetch("/api/content-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMessage],
+          content: podcastScript,
+          contentTitle: podcastTopic || (createMode === "content" ? "generated content" : "podcast")
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Add assistant message to chat
+      setChatMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: data.response
+      }]);
+      
+      // Store any citations or related questions
+      if (data.citations) setChatCitations(data.citations);
+      if (data.relatedQuestions) setChatRelatedQuestions(data.relatedQuestions);
+      
+    } catch (error) {
+      console.error("Error sending chat message:", error);
+      setChatMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: "Sorry, there was an error processing your request. Please try again later."
+      }]);
       
       toast({
-        title: "Redirecting to chat",
-        description: "Now you can chat about the podcast content"
+        title: "Error",
+        description: "Failed to get a response from the AI.",
+        variant: "destructive"
       });
+    } finally {
+      setIsChatLoading(false);
     }
+  };
+  
+  // Auto-scroll chat to bottom when new messages are added
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+  
+  // Function to navigate to chat with podcast content (legacy, now using in-page chat)
+  const navigateToChatWithPodcast = () => {
+    // Instead of navigating, just open the in-page chat
+    toggleContentChat();
+    
+    toast({
+      title: "Chat opened",
+      description: "You can now chat about your content directly on this page"
+    });
   };
   
   // Effect for polling job status if needed
@@ -1341,12 +1426,12 @@ export default function CreatePage() {
                   </Button>
                   
                   <Button 
-                    variant="outline"
-                    onClick={navigateToChatWithPodcast}
+                    variant={showContentChat ? "default" : "outline"}
+                    onClick={toggleContentChat}
                     className="ml-2"
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
-                    Chat with Podcast
+                    {showContentChat ? "Hide Chat" : "Chat with Content"}
                   </Button>
                 </div>
               </CardFooter>
