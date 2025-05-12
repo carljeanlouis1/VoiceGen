@@ -362,7 +362,11 @@ export default function CreatePage() {
       setChatInput("");
       setIsChatLoading(true);
       
-      // Make API call
+      // Create an AbortController to handle timeouts
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      // Make API call with timeout and abort controller
       const response = await fetch("/api/content-chat", {
         method: "POST",
         headers: {
@@ -372,8 +376,12 @@ export default function CreatePage() {
           messages: currentMessages,
           content: podcastScript,
           contentTitle: podcastTopic || (createMode === "content" ? "generated content" : "podcast")
-        })
+        }),
+        signal: controller.signal
       });
+      
+      // Clear the timeout
+      clearTimeout(timeoutId);
       
       // Handle response errors
       if (!response.ok) {
@@ -398,15 +406,29 @@ export default function CreatePage() {
     } catch (error) {
       console.error("Error sending chat message:", error);
       
+      // Handle specific error types
+      let errorMessage = "Sorry, there was an error processing your request. Please try again later.";
+      let toastMessage = "Failed to get a response";
+      
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        errorMessage = "The request took too long to process. This could be due to high server load or connectivity issues.";
+        toastMessage = "Request timed out - please try again";
+      } else if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = "There was a network error. Please check your internet connection and try again.";
+        toastMessage = "Network error occurred";
+      } else if (error instanceof Error) {
+        toastMessage = `Error: ${error.message}`;
+      }
+      
       // Safely update state
       setChatMessages(prev => [...prev, { 
         role: "assistant", 
-        content: "Sorry, there was an error processing your request. Please try again later."
+        content: errorMessage
       }]);
       
       toast({
         title: "Error",
-        description: `Failed to get a response: ${error instanceof Error ? error.message : "Unknown error"}`,
+        description: toastMessage,
         variant: "destructive"
       });
     } finally {
@@ -731,7 +753,57 @@ export default function CreatePage() {
     setPreviousPartContent("");
     setGeneratedAudioUrl(null);
     setGeneratedAudioTitle("");
+    
+    // Also clear sessionStorage
+    try {
+      sessionStorage.removeItem('podcast_script');
+      sessionStorage.removeItem('podcast_topic');
+      sessionStorage.removeItem('podcast_audio_url');
+    } catch (error) {
+      console.error("Error clearing sessionStorage:", error);
+    }
   };
+  
+  // Save important state to sessionStorage
+  useEffect(() => {
+    if (podcastScript) {
+      try {
+        // Store podcast script and related data in sessionStorage
+        sessionStorage.setItem('podcast_script', podcastScript);
+        sessionStorage.setItem('podcast_topic', podcastTopic || '');
+        if (generatedAudioUrl) {
+          sessionStorage.setItem('podcast_audio_url', generatedAudioUrl);
+        }
+      } catch (error) {
+        console.error("Error saving state to sessionStorage:", error);
+      }
+    }
+  }, [podcastScript, podcastTopic, generatedAudioUrl]);
+  
+  // Try to recover state from sessionStorage on page load
+  useEffect(() => {
+    try {
+      // Only attempt recovery if we don't already have a script
+      if (!podcastScript) {
+        const savedScript = sessionStorage.getItem('podcast_script');
+        const savedTopic = sessionStorage.getItem('podcast_topic');
+        const savedAudioUrl = sessionStorage.getItem('podcast_audio_url');
+        
+        if (savedScript) {
+          setPodcastScript(savedScript);
+          if (savedTopic) setPodcastTopic(savedTopic);
+          if (savedAudioUrl) setGeneratedAudioUrl(savedAudioUrl);
+          
+          toast({
+            title: "Content Recovered",
+            description: "Your previous content has been restored.",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error recovering state from sessionStorage:", error);
+    }
+  }, []);
 
   return (
     <div className="container mx-auto py-6 space-y-6 max-w-6xl">
