@@ -1498,24 +1498,11 @@ export default function CreatePage() {
                     </Button>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          // Direct approach - navigate to chat page with content
-                          if (generatedContent) {
-                            localStorage.setItem('chatContext', generatedContent);
-                            window.location.href = '/chat?withContext=true';
-                          } else {
-                            toast({
-                              title: "No content",
-                              description: "Please generate content first",
-                              variant: "destructive"
-                            });
-                          }
-                        }}
+                        variant={showContentChat ? "default" : "outline"}
+                        onClick={toggleContentChat}
                       >
                         <MessageSquare className="mr-2 h-4 w-4" />
-                        Chat About Content
+                        {showContentChat ? "Hide Chat" : "Chat with Content"}
                       </Button>
                     </div>
                   </div>
