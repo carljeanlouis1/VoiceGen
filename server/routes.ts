@@ -1059,6 +1059,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New endpoint for in-page content chat with Perplexity Sonar Pro
   app.post("/api/content-chat", async (req, res) => {
     try {
+      log('Received content chat request');
+      
+      // Basic validation for missing request body
+      if (!req.body) {
+        log('Request body is empty or undefined');
+        return res.status(400).json({ 
+          error: "Invalid request", 
+          message: "Request body is missing" 
+        });
+      }
+      
       const schema = z.object({
         messages: z.array(z.object({
           role: z.enum(["user", "assistant", "system"]),
@@ -1068,9 +1079,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contentTitle: z.string().optional()
       });
 
+      // Validate with detailed error messages
       const validation = schema.safeParse(req.body);
       
       if (!validation.success) {
+        log(`Validation error: ${JSON.stringify(validation.error.format())}`);
         return res.status(400).json({ 
           error: "Invalid request data", 
           details: validation.error.format() 
@@ -1079,15 +1092,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { messages, content, contentTitle } = validation.data;
       
+      // Log for debugging
+      log(`Processing content chat: title="${contentTitle || 'untitled'}", content length=${content.length}, messages=${messages.length}`);
+      
       // Early validation
       if (!messages || messages.length === 0) {
+        log('Empty messages array');
         return res.status(400).json({ error: "Messages must be a non-empty array" });
       }
       
       // Check if Perplexity API key is available
       if (!process.env.PERPLEXITY_API_KEY) {
         log("PERPLEXITY_API_KEY environment variable is missing");
-        throw new Error("PERPLEXITY_API_KEY is required for content chat");
+        return res.status(500).json({ 
+          error: "API configuration error", 
+          message: "Perplexity API key is not configured"
+        });
       }
       
       // Get the user's latest message
@@ -1172,13 +1192,24 @@ When responding to the user:
       const data = await perplexityResponse.json();
       log('Successfully received content chat response from Perplexity API');
       
+      // Validate response structure
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        log(`Unexpected response format from Perplexity API: ${JSON.stringify(data).substring(0, 200)}...`);
+        return res.status(500).json({
+          error: "Invalid response format",
+          message: "The API response was in an unexpected format"
+        });
+      }
+      
       // Extract content from the response
       const answer = data.choices[0].message.content;
       const citations = data.citations || [];
       const relatedQuestions = data.related_questions || [];
       
+      log(`Response summary: ${answer.substring(0, 100)}..., citations: ${citations.length}, related questions: ${relatedQuestions.length}`);
+      
       // Return formatted response to client
-      res.json({
+      return res.json({
         response: answer,
         citations,
         relatedQuestions,
@@ -1186,9 +1217,11 @@ When responding to the user:
       });
     } catch (error: any) {
       log(`Error in /api/content-chat: ${error.message}`);
-      res.status(500).json({ 
+      console.error("Full error:", error);
+      
+      return res.status(500).json({ 
         error: "Failed to process content chat request", 
-        message: error.message 
+        message: error.message || "Unknown error occurred"
       });
     }
   });

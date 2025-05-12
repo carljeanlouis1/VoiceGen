@@ -324,16 +324,25 @@ export default function CreatePage() {
   
   // Toggle the in-page chat interface
   const toggleContentChat = () => {
-    if (!showContentChat && podcastScript && chatMessages.length === 0) {
-      // Initialize with a system message when first opening the chat
-      setChatMessages([
-        {
-          role: "system",
-          content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
-        }
-      ]);
+    try {
+      if (!showContentChat && podcastScript && chatMessages.length === 0) {
+        // Initialize with a system message when first opening the chat
+        setChatMessages([
+          {
+            role: "system",
+            content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
+          }
+        ]);
+      }
+      setShowContentChat(!showContentChat);
+    } catch (error) {
+      console.error("Error toggling chat interface:", error);
+      toast({
+        title: "Error",
+        description: "There was a problem opening the chat interface. Please try again.",
+        variant: "destructive"
+      });
     }
-    setShowContentChat(!showContentChat);
   };
   
   // Handle sending a message in the chat
@@ -342,29 +351,38 @@ export default function CreatePage() {
     
     if (!chatInput.trim() || isChatLoading || !podcastScript) return;
     
-    // Add user message to chat
-    const userMessage = { role: "user" as const, content: chatInput };
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput("");
-    setIsChatLoading(true);
-    
+    // Store the current script and content to preserve it if page refreshes
     try {
+      // Capture the user's message and prepare chat state
+      const userMessage = { role: "user" as const, content: chatInput };
+      const currentMessages = [...chatMessages, userMessage];
+      
+      // Update UI state first
+      setChatMessages(currentMessages);
+      setChatInput("");
+      setIsChatLoading(true);
+      
+      // Make API call
       const response = await fetch("/api/content-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          messages: [...chatMessages, userMessage],
+          messages: currentMessages,
           content: podcastScript,
           contentTitle: podcastTopic || (createMode === "content" ? "generated content" : "podcast")
         })
       });
       
+      // Handle response errors
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error("API Error:", errorText);
+        throw new Error(`API error (${response.status}): ${errorText || "Unknown error"}`);
       }
       
+      // Parse the successful response
       const data = await response.json();
       
       // Add assistant message to chat
@@ -379,6 +397,8 @@ export default function CreatePage() {
       
     } catch (error) {
       console.error("Error sending chat message:", error);
+      
+      // Safely update state
       setChatMessages(prev => [...prev, { 
         role: "assistant", 
         content: "Sorry, there was an error processing your request. Please try again later."
@@ -386,7 +406,7 @@ export default function CreatePage() {
       
       toast({
         title: "Error",
-        description: "Failed to get a response from the AI.",
+        description: `Failed to get a response: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive"
       });
     } finally {
