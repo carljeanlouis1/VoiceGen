@@ -323,7 +323,13 @@ export default function CreatePage() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   
   // Toggle the in-page chat interface
-  const toggleContentChat = () => {
+  const toggleContentChat = (e?: React.MouseEvent) => {
+    // Prevent any default behavior if this is called from an event
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     try {
       if (!showContentChat && podcastScript && chatMessages.length === 0) {
         // Initialize with a system message when first opening the chat
@@ -334,7 +340,7 @@ export default function CreatePage() {
           }
         ]);
       }
-      setShowContentChat(!showContentChat);
+      setShowContentChat(prevState => !prevState);
     } catch (error) {
       console.error("Error toggling chat interface:", error);
       toast({
@@ -1519,8 +1525,25 @@ export default function CreatePage() {
                   
                   <Button 
                     variant={showContentChat ? "default" : "outline"}
-                    onClick={toggleContentChat}
                     className="ml-2"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      
+                      // Initialize system message if opening chat for the first time
+                      if (!showContentChat && chatMessages.length === 0) {
+                        setChatMessages([
+                          {
+                            role: "system",
+                            content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
+                          }
+                        ]);
+                      }
+                      
+                      // Toggle the chat visibility
+                      setShowContentChat(current => !current);
+                    }}
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {showContentChat ? "Hide Chat" : "Chat with Content"}
