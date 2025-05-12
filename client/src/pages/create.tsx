@@ -2009,7 +2009,10 @@ export default function CreatePage() {
           )}
           
           {/* Chat Interface - shown when showContentChat is true */}
-          {showContentChat && ((createMode === "podcast" && podcastScript) || (createMode === "content" && generatedContent)) && (
+          {showContentChat && (
+            ((createMode === "podcast") && !!podcastScript) || 
+            ((createMode === "content") && !!generatedContent)
+          ) && (
             <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
@@ -2022,7 +2025,7 @@ export default function CreatePage() {
                   </div>
                 </CardTitle>
                 <CardDescription>
-                  Ask questions about the content or request additional information from the web
+                  Ask questions about your generated content or request additional information from the web
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2033,9 +2036,9 @@ export default function CreatePage() {
                   {chatMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-4">
                       <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
-                      <h3 className="font-medium mb-1">Chat about your content</h3>
+                      <h3 className="font-medium mb-1">Chat about your {createMode === "podcast" ? "podcast script" : "generated content"}</h3>
                       <p className="text-sm">
-                        Ask questions about the content, request summaries, or get related information from the web using Perplexity's Sonar Pro.
+                        Ask questions, request summaries, or get related information from the web using Perplexity's Sonar Pro.
                       </p>
                     </div>
                   ) : (
