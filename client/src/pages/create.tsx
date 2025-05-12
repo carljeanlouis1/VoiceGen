@@ -664,35 +664,50 @@ export default function CreatePage() {
       e.stopPropagation();
     }
     
+    console.log("----- TOGGLE CHAT DEBUG -----");
     console.log("Toggle chat called, current mode:", createMode);
-    console.log("Has content:", hasContentToChat());
-    console.log("Current content:", getCurrentContent().substring(0, 50) + "...");
+    console.log("Current showContentChat state:", showContentChat);
+    console.log("Has content to chat:", hasContentToChat());
+    
+    let contentSample = "";
+    try {
+      contentSample = getCurrentContent().substring(0, 50) + "...";
+    } catch (err) {
+      contentSample = "Error getting content sample";
+    }
+    console.log("Content sample:", contentSample);
     
     try {
-      if (!showContentChat && chatMessages.length === 0) {
-        // Check if there's content to chat about
-        if (hasContentToChat()) {
-          console.log("Initializing chat with system message");
-          // Initialize with a system message when first opening the chat
-          const contentType = createMode === "podcast" ? "podcast script" : "generated content";
-          setChatMessages([
-            {
-              role: "system",
-              content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
-            }
-          ]);
-        } else {
-          console.log("No content to chat about");
-          toast({
-            title: "No content to chat about",
-            description: "Please generate some content first before starting a chat.",
-            variant: "destructive"
-          });
-          return; // Don't open chat if there's no content
-        }
+      // First, make sure the user has content to chat about
+      if (!hasContentToChat()) {
+        console.log("No content found, showing toast and returning");
+        toast({
+          title: "No content to chat about",
+          description: "Please generate some content first before starting a chat.",
+          variant: "destructive"
+        });
+        return; // Don't toggle chat if there's no content
       }
+      
+      // If we're opening the chat and there are no messages, initialize with a system message
+      if (!showContentChat && chatMessages.length === 0) {
+        console.log("Initializing chat with system message");
+        const contentType = createMode === "podcast" ? "podcast script" : "generated content";
+        setChatMessages([
+          {
+            role: "system",
+            content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
+          }
+        ]);
+      }
+      
+      // Toggle the chat display state
       console.log("Setting showContentChat to:", !showContentChat);
-      setShowContentChat(prevState => !prevState);
+      setShowContentChat(!showContentChat);
+      
+      // After toggling, log the expected new state
+      console.log("Chat should now be:", !showContentChat ? "visible" : "hidden");
+      console.log("----- END DEBUG -----");
     } catch (error) {
       console.error("Error toggling chat interface:", error);
       toast({
@@ -1499,16 +1514,45 @@ export default function CreatePage() {
                       <Copy className="mr-2 h-4 w-4" />
                       Copy
                     </Button>
-                    <Button
-                      variant={showContentChat ? "default" : "outline"}
-                      onClick={(e) => {
-                        console.log("Chat button clicked");
-                        toggleContentChat(e);
-                      }}
-                    >
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      {showContentChat ? "Hide Chat" : "Chat with Content"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={showContentChat ? "default" : "outline"}
+                        onClick={(e) => {
+                          console.log("Chat button clicked");
+                          toggleContentChat(e);
+                        }}
+                      >
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        {showContentChat ? "Hide Chat" : "Chat with Content"}
+                      </Button>
+                      
+                      {/* Debug button that directly sets showContentChat to true */}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log("Debug - Force chat visible");
+                          if (hasContentToChat()) {
+                            setShowContentChat(true);
+                            if (chatMessages.length === 0) {
+                              setChatMessages([
+                                {
+                                  role: "system",
+                                  content: `Debug system message`
+                                }
+                              ]);
+                            }
+                            console.log("Debug - Set showContentChat to true");
+                          } else {
+                            console.log("Debug - No content to chat about");
+                          }
+                        }}
+                      >
+                        Debug
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Select
@@ -2034,7 +2078,11 @@ export default function CreatePage() {
           {/* Chat Interface - shown when showContentChat is true and there's content */}
           {/* Debug log for chat interface rendering */}
           {(() => {
-            console.log("Chat interface rendering condition:", {showContentChat, hasContent: hasContentToChat()});
+            console.log("----- CHAT INTERFACE RENDER CHECK -----");
+            console.log("showContentChat:", showContentChat);
+            console.log("hasContentToChat():", hasContentToChat());
+            console.log("createMode:", createMode);
+            console.log("Should render chat:", showContentChat && hasContentToChat());
             return null;
           })()}
           {showContentChat && hasContentToChat() && (
