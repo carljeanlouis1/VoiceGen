@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
   Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
-  Volume2, Download, Square, Info as InfoIcon
+  Volume2, Download, Square, Info as InfoIcon, X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -301,15 +301,32 @@ export default function CreatePage() {
           }
         }
         
-        // Clear job ID
-        setContentProcessingJobId(null);
-        
-        toast({
-          title: contentCurrentSegment >= contentSegments ? "Content Complete" : "Segment Complete",
-          description: contentCurrentSegment >= contentSegments 
-            ? "Your complete content has been generated!" 
-            : `Segment ${contentCurrentSegment} of ${contentSegments} has been generated.`
-        });
+        // Handle next segment or completion
+        if (contentCurrentSegment < contentSegments) {
+          // Move to the next segment
+          const nextSegment = contentCurrentSegment + 1;
+          
+          toast({
+            title: "Segment Complete",
+            description: `Generating segment ${nextSegment} of ${contentSegments}...`
+          });
+          
+          // Increment the segment counter
+          setContentCurrentSegment(nextSegment);
+          
+          // Start generating the next segment after a short delay
+          setTimeout(() => {
+            contentResearchMutation.mutate();
+          }, 1000);
+        } else {
+          // We're done with all segments
+          setContentProcessingJobId(null);
+          
+          toast({
+            title: "Content Complete",
+            description: "Your complete content has been generated!"
+          });
+        }
       } else {
         // For regular mode, just set the content
         setGeneratedContent(data.script || data.content);
@@ -1011,65 +1028,6 @@ export default function CreatePage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 className="min-h-[200px]"
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <CardTitle>Images</CardTitle>
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    checked={useImages} 
-                    onCheckedChange={setUseImages} 
-                    id="use-images" 
-                  />
-                  <Label htmlFor="use-images">Include images</Label>
-                </div>
-              </div>
-              <CardDescription>Add images for multimodal content generation</CardDescription>
-            </CardHeader>
-            <CardContent className={useImages ? "" : "opacity-50 pointer-events-none"}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                multiple
-                className="hidden"
-              />
-              
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={!useImages}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Images
-              </Button>
-              
-              {images.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={URL.createObjectURL(image)}
-                        alt={`Uploaded ${index + 1}`}
-                        className="w-full h-auto rounded-md aspect-square object-cover"
-                      />
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeImage(index)}
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
 
