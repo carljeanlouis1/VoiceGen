@@ -1438,6 +1438,110 @@ export default function CreatePage() {
             </Card>
           )}
           
+          {/* Chat Interface - shown when showContentChat is true */}
+          {podcastScript && showContentChat && (
+            <Card className="mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center">
+                  <div className="flex items-center">
+                    <Sparkles className="h-5 w-5 mr-2 text-primary" />
+                    <span>Chat with Perplexity Sonar</span>
+                  </div>
+                  <div className="ml-2 text-xs px-1.5 py-0.5 bg-primary/10 rounded-md">
+                    Web search enabled
+                  </div>
+                </CardTitle>
+                <CardDescription>
+                  Ask questions about the content or request additional information from the web
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  className="h-[300px] overflow-y-auto border rounded-md p-3 mb-3"
+                  ref={chatScrollRef}
+                >
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-4">
+                      <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
+                      <h3 className="font-medium mb-1">Chat about your content</h3>
+                      <p className="text-sm">
+                        Ask questions about the content, request summaries, or get related information from the web using Perplexity's Sonar Pro.
+                      </p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, index) => {
+                      if (msg.role === 'system') return null;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={`mb-3 p-3 rounded-lg ${
+                            msg.role === 'assistant' 
+                              ? 'bg-muted' 
+                              : 'bg-primary text-primary-foreground'
+                          }`}
+                        >
+                          <div className="text-xs mb-1">
+                            {msg.role === 'assistant' ? 'Perplexity Sonar' : 'You'}
+                          </div>
+                          <div className="whitespace-pre-line">{msg.content}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                  
+                  {isChatLoading && (
+                    <div className="flex items-center justify-center p-4">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span className="text-sm">Perplexity Sonar is thinking...</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Chat input form */}
+                <form className="flex gap-2" onSubmit={handleChatSubmit}>
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask about the content or get related information..."
+                    className="flex-1"
+                    disabled={isChatLoading}
+                  />
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={!chatInput.trim() || isChatLoading}
+                  >
+                    {isChatLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </form>
+                
+                {/* Citations and related questions */}
+                {chatCitations.length > 0 && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <div className="font-medium mb-1">Sources:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {chatCitations.slice(0, 5).map((cite, i) => (
+                        <div key={i} className="max-w-[200px] truncate bg-muted px-1.5 py-0.5 rounded">
+                          {cite}
+                        </div>
+                      ))}
+                      {chatCitations.length > 5 && (
+                        <div className="bg-muted px-1.5 py-0.5 rounded">
+                          +{chatCitations.length - 5} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
           {/* Standalone Audio Player Card - shown when there's no script but audio exists (e.g., after page reset) */}
           {!podcastScript && generatedAudioUrl && (
             <Card>
