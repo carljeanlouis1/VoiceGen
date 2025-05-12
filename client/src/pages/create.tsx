@@ -2013,7 +2013,7 @@ export default function CreatePage() {
           
           {/* Chat Interface */}
           {showContentChat && (
-            <Card className="mt-4" key={`chat-interface-${chatKey}`}>
+            <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <div className="flex items-center">
