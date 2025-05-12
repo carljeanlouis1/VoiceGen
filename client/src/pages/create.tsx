@@ -1474,10 +1474,19 @@ export default function CreatePage() {
             {generatedContent && (
               <>
                 <CardFooter className="flex justify-between">
-                  <Button variant="outline" onClick={copyToClipboard}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={copyToClipboard}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy
+                    </Button>
+                    <Button
+                      variant={showContentChat ? "default" : "outline"}
+                      onClick={toggleContentChat}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      {showContentChat ? "Hide Chat" : "Chat with Content"}
+                    </Button>
+                  </div>
                   <div className="flex gap-2">
                     <Select
                       value={ttsVoice}
@@ -2000,7 +2009,7 @@ export default function CreatePage() {
           )}
           
           {/* Chat Interface - shown when showContentChat is true */}
-          {podcastScript && showContentChat && (
+          {showContentChat && ((createMode === "podcast" && podcastScript) || (createMode === "content" && generatedContent)) && (
             <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
