@@ -148,7 +148,172 @@ export default function CreatePage() {
   
   // Audio reference for voice samples
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Text-to-speech states
+  const [ttsJobId, setTtsJobId] = useState<number | null>(null);
+  const [ttsProgress, setTtsProgress] = useState(0);
+  const [ttsComplete, setTtsComplete] = useState(false);
+  const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
+  const [ttsTitle, setTtsTitle] = useState<string>("");
+  const [ttsVoice, setTtsVoice] = useState<typeof AVAILABLE_VOICES[number]>("alloy");
+  const [ttsProcessing, setTtsProcessing] = useState(false);
+  const [ttsGenerateArtwork, setTtsGenerateArtwork] = useState(false);
+  
+  // Interval reference for TTS job polling
+  const ttsIntervalRef = useRef<number | null>(null);
 
+  // Function to check TTS job status
+  const checkTtsJobStatus = async (jobId: number) => {
+    try {
+      console.log(`Checking status for TTS job ${jobId}...`);
+      // Using the general-purpose job status endpoint
+      const response = await fetch(`/api/job-status/${jobId}`);
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch job status: ${response.status}`);
+        throw new Error(`Failed to fetch job status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Received status for TTS job ${jobId}:`, data);
+      
+      // Update job state with latest information
+      setTtsProgress(data.progress || 0);
+      
+      // Handle completion
+      if (data.status === 'complete') {
+        console.log(`TTS job ${jobId} completed successfully!`);
+        
+        // Stop polling
+        if (ttsIntervalRef.current) {
+          console.log(`Clearing interval for completed TTS job ${jobId}`);
+          window.clearInterval(ttsIntervalRef.current);
+          ttsIntervalRef.current = null;
+        }
+        
+        setTtsProcessing(false);
+        setTtsComplete(true);
+        
+        if (data.audioUrl) {
+          console.log(`Audio URL received for TTS job ${jobId}, updating UI`);
+          setTtsAudioUrl(data.audioUrl);
+          
+          // Show completion toast
+          toast({
+            title: "Success",
+            description: "Audio file created successfully",
+          });
+        }
+      }
+      // Handle error
+      else if (data.status === 'error') {
+        console.log(`TTS job ${jobId} failed with error: ${data.error}`);
+        
+        // Stop polling
+        if (ttsIntervalRef.current) {
+          window.clearInterval(ttsIntervalRef.current);
+          ttsIntervalRef.current = null;
+        }
+        
+        setTtsProcessing(false);
+        
+        // Show error toast
+        toast({
+          title: "Error",
+          description: data.error || "Failed to convert text to speech",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error checking TTS job status:", error);
+    }
+  };
+  
+  // Start polling when TTS job ID changes
+  useEffect(() => {
+    if (ttsJobId && ttsProcessing) {
+      // Stop any existing interval
+      if (ttsIntervalRef.current) {
+        window.clearInterval(ttsIntervalRef.current);
+      }
+      
+      // Start polling
+      const id = window.setInterval(() => {
+        checkTtsJobStatus(ttsJobId);
+      }, 2000);
+      
+      ttsIntervalRef.current = id;
+      
+      // Initial check
+      checkTtsJobStatus(ttsJobId);
+    }
+    
+    // Clean up when component unmounts or job ID changes
+    return () => {
+      if (ttsIntervalRef.current) {
+        window.clearInterval(ttsIntervalRef.current);
+        ttsIntervalRef.current = null;
+      }
+    };
+  }, [ttsJobId]);
+  
+  // Function to start the TTS process
+  const startTextToSpeech = async (text: string, title: string) => {
+    if (!text || !title) {
+      toast({
+        title: "Error",
+        description: "Text and title are required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setTtsProcessing(true);
+    setTtsComplete(false);
+    setTtsAudioUrl(null);
+    setTtsTitle(title);
+    
+    try {
+      const response = await apiRequest("/api/text-to-speech", {
+        method: "POST",
+        data: {
+          title,
+          text,
+          voice: ttsVoice,
+          generateArtwork: ttsGenerateArtwork
+        }
+      });
+      
+      // Handle background processing job
+      if (response && response.status === 'processing') {
+        setTtsJobId(response.id);
+        
+        toast({
+          title: "Processing Started",
+          description: "Your text is being converted in the background. This may take a few minutes.",
+        });
+      } else if (response) {
+        // For immediate completions (not background jobs)
+        setTtsComplete(true);
+        setTtsProcessing(false);
+        setTtsAudioUrl(response.audioUrl);
+        
+        toast({
+          title: "Success",
+          description: "Audio file created successfully",
+        });
+      }
+    } catch (error: any) {
+      setTtsProcessing(false);
+      
+      toast({
+        title: "Error",
+        description: error.message || "Failed to convert text to speech. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+  
   // Function to play a voice sample
   const playVoiceSample = async (voice: string) => {
     try {
@@ -1249,22 +1414,65 @@ export default function CreatePage() {
               )}
             </CardContent>
             {generatedContent && (
-              <CardFooter className="flex justify-between">
-                <Button variant="outline" onClick={copyToClipboard}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy
-                </Button>
-                <Button 
-                  onClick={() => {
-                    // Navigate to convert page with this content
-                    const textToConvert = encodeURIComponent(generatedContent);
-                    window.location.href = `/convert?text=${textToConvert}`;
-                  }}
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Convert to Speech
-                </Button>
-              </CardFooter>
+              <>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" onClick={copyToClipboard}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </Button>
+                  <div className="flex gap-2">
+                    <Select
+                      value={ttsVoice}
+                      onValueChange={setTtsVoice}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Select voice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AVAILABLE_VOICES.map((voice) => (
+                          <SelectItem key={voice} value={voice}>
+                            {voice.charAt(0).toUpperCase() + voice.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      onClick={() => {
+                        startTextToSpeech(
+                          generatedContent, 
+                          contentCombinedContent 
+                            ? `Content: ${prompt.substring(0, 20)}...` 
+                            : `Content: ${prompt.substring(0, 20)}...`
+                        );
+                      }}
+                      disabled={ttsProcessing}
+                    >
+                      {ttsProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Volume2 className="mr-2 h-4 w-4" />}
+                      {ttsProcessing ? "Processing..." : "Generate Audio"}
+                    </Button>
+                  </div>
+                </CardFooter>
+                
+                {/* TTS Processing Status */}
+                {ttsProcessing && (
+                  <div className="mt-4 p-4 border rounded-md bg-muted/20">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="font-medium">Converting to speech: {ttsProgress}%</span>
+                    </div>
+                    <Progress value={ttsProgress} className="w-full h-2" />
+                  </div>
+                )}
+                
+                {/* Audio Player */}
+                {ttsComplete && ttsAudioUrl && (
+                  <div className="mt-4">
+                    <AudioPlayer 
+                      src={ttsAudioUrl} 
+                      title={ttsTitle} 
+                    />
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </div>
