@@ -657,7 +657,7 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Toggle the in-page chat interface - complete rewrite with force trigger
+  // Toggle the in-page chat interface - completely rewritten approach
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
@@ -678,12 +678,6 @@ export default function CreatePage() {
       return; // Don't proceed if no content
     }
     
-    // For debugging - forcing layout
-    document.body.classList.add('force-reflow');
-    setTimeout(() => {
-      document.body.classList.remove('force-reflow');
-    }, 0);
-    
     // Initialize with a system message when first opening the chat
     if (!showContentChat && chatMessages.length === 0) {
       const contentType = createMode === "podcast" ? "podcast script" : "generated content";
@@ -695,24 +689,26 @@ export default function CreatePage() {
       setChatMessages([systemMsg]);
     }
     
-    // Instead of toggling, we'll explicitly set the state to ensure it updates
-    const newChatState = !showContentChat;
-    console.log(`Explicitly setting showContentChat to:`, newChatState);
+    // New approach: Use a callback with a timeout to ensure state updates
+    const toggleChatVisibility = () => {
+      // Set the state with a callback to ensure we get the latest state
+      setShowContentChat(prev => {
+        const newState = !prev;
+        console.log(`Chat visibility toggling to:`, newState);
+        return newState;
+      });
+      
+      // Force re-render with a new key
+      setChatKey(prev => prev + 1);
+    };
     
-    // Force a re-render with a new key
-    setChatKey(k => k + 1);
+    // Execute the toggle with a slight delay to ensure clean state transitions
+    setTimeout(toggleChatVisibility, 10);
     
-    // Set the state
-    setShowContentChat(newChatState);
-    
-    // For debugging
-    console.log("After state update, new expected state:", newChatState);
-    console.log("----- END TOGGLE CHAT FUNCTION -----");
-    
-    // Additional debugging - double check the state after a short delay
+    // Log when it's done
     setTimeout(() => {
-      console.log("DELAYED CHECK - showContentChat value:", !showContentChat ? "Still old value" : "Updated to new value");
-    }, 100);
+      console.log("After toggle completed, chat state should be updated");
+    }, 50);
   };
   
   // Handle sending a message in the chat
@@ -2034,9 +2030,49 @@ export default function CreatePage() {
                     className="ml-2"
                     type="button"
                     onClick={toggleContentChat}
+                    id="chatToggleBtn"
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {showContentChat ? "Hide Chat" : "Chat with Content"}
+                  </Button>
+                  
+                  {/* Debug button - will be removed in production */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-2 bg-yellow-100 dark:bg-yellow-900"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log("Debug button clicked");
+                      console.log("Chat state:", {
+                        showContentChat, 
+                        hasContent: hasContentToChat(),
+                        messages: chatMessages.length,
+                        chatKey
+                      });
+                      
+                      // Force chat to show with a message
+                      setShowContentChat(true);
+                      setChatKey(k => k + 100);
+                      
+                      // Add a debug message
+                      const newMessages = [
+                        {
+                          role: "system" as const,
+                          content: "Debug message - " + new Date().toISOString()
+                        }
+                      ];
+                      setChatMessages(newMessages);
+                      
+                      toast({
+                        title: "Debug mode activated",
+                        description: "Chat interface should appear now"
+                      });
+                    }}
+                  >
+                    <Bug className="mr-2 h-4 w-4" />
+                    Debug
                   </Button>
                 </div>
               </CardFooter>
