@@ -642,6 +642,20 @@ export default function CreatePage() {
   // Reference for auto-scrolling the chat
   const chatScrollRef = useRef<HTMLDivElement>(null);
   
+  // Helper function to get the appropriate content based on mode
+  const getCurrentContent = () => {
+    if (createMode === "podcast") {
+      return podcastScript || "";
+    } else {
+      return generatedContent || "";
+    }
+  };
+  
+  // Helper function to check if there's content to chat about
+  const hasContentToChat = () => {
+    return createMode === "podcast" ? !!podcastScript : !!generatedContent;
+  };
+  
   // Toggle the in-page chat interface
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
@@ -652,15 +666,14 @@ export default function CreatePage() {
     
     try {
       if (!showContentChat && chatMessages.length === 0) {
-        // Content to chat about depends on the mode
-        const hasContent = createMode === "podcast" ? !!podcastScript : !!generatedContent;
-        
-        if (hasContent) {
+        // Check if there's content to chat about
+        if (hasContentToChat()) {
           // Initialize with a system message when first opening the chat
+          const contentType = createMode === "podcast" ? "podcast script" : "generated content";
           setChatMessages([
             {
               role: "system",
-              content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
+              content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
             }
           ]);
         } else {
@@ -690,10 +703,10 @@ export default function CreatePage() {
     if (!chatInput.trim() || isChatLoading) return;
     
     // Get the appropriate content based on mode
-    const contentToUse = createMode === "podcast" ? podcastScript : generatedContent;
+    const contentToUse = getCurrentContent();
     
     // Make sure we have content to chat about
-    if (!contentToUse) {
+    if (!hasContentToChat()) {
       toast({
         title: "No content to chat about",
         description: "Please generate some content first before starting a chat.",
@@ -2008,11 +2021,8 @@ export default function CreatePage() {
             </Card>
           )}
           
-          {/* Chat Interface - shown when showContentChat is true */}
-          {showContentChat && (
-            ((createMode === "podcast") && !!podcastScript) || 
-            ((createMode === "content") && !!generatedContent)
-          ) && (
+          {/* Chat Interface - shown when showContentChat is true and there's content */}
+          {showContentChat && hasContentToChat() && (
             <Card className="mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
