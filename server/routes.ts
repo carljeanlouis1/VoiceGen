@@ -1056,6 +1056,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for error handling simulation (used for debugging client error handling)
+  app.post("/api/test-error", async (req, res) => {
+    const { error_type } = req.query;
+    
+    if (error_type === "timeout") {
+      // Simulate a timeout by waiting and then not responding
+      await new Promise(resolve => setTimeout(resolve, 60000));
+      return;
+    } else if (error_type === "server_error") {
+      return res.status(500).json({ error: "Simulated server error" });
+    } else if (error_type === "bad_request") {
+      return res.status(400).json({ error: "Simulated validation error" });
+    } else if (error_type === "not_found") {
+      return res.status(404).json({ error: "Resource not found" });
+    } else {
+      return res.status(200).json({ message: "Test successful - no errors" });
+    }
+  });
+  
   // New endpoint for in-page content chat with Perplexity Sonar Pro
   app.post("/api/content-chat", async (req, res) => {
     try {
