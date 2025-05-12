@@ -638,6 +638,7 @@ export default function CreatePage() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatCitations, setChatCitations] = useState<string[]>([]);
   const [chatRelatedQuestions, setChatRelatedQuestions] = useState<string[]>([]);
+  const [chatKey, setChatKey] = useState(0); // Force chat interface to re-render
   
   // Reference for auto-scrolling the chat
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -656,13 +657,15 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Toggle the in-page chat interface - completely rewritten for simplicity
+  // Toggle the in-page chat interface - completely rewritten for simplicity and reliability
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    
+    console.log("toggleContentChat called");
     
     // Check if there's content to chat about
     if (!hasContentToChat()) {
@@ -685,12 +688,16 @@ export default function CreatePage() {
       ]);
     }
     
-    // Toggle the chat state - use direct assignment instead of function form
-    const newState = !showContentChat;
-    setShowContentChat(newState);
-    
-    // Log what happened
-    console.log(`Chat visibility set to: ${newState ? 'visible' : 'hidden'}`);
+    // Toggle the chat state - use function form to ensure we get the latest state
+    setShowContentChat(current => {
+      const newState = !current;
+      console.log(`Chat visibility set to: ${newState ? 'visible' : 'hidden'}`);
+      
+      // Force a re-render of the chat interface with a new key
+      setChatKey(prevKey => prevKey + 1);
+      
+      return newState;
+    });
   };
   
   // Handle sending a message in the chat
@@ -1491,41 +1498,24 @@ export default function CreatePage() {
                     </Button>
                     <div className="flex gap-2">
                       <Button
-                        variant={showContentChat ? "default" : "outline"}
-                        onClick={(e) => {
-                          console.log("Chat button clicked");
-                          toggleContentChat(e);
-                        }}
-                      >
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                        {showContentChat ? "Hide Chat" : "Chat with Content"}
-                      </Button>
-                      
-                      {/* Debug button that directly sets showContentChat to true */}
-                      <Button
-                        variant="destructive"
-                        size="sm"
+                        variant="outline"
                         onClick={(e) => {
                           e.preventDefault();
-                          e.stopPropagation();
-                          console.log("Debug - Force chat visible");
-                          if (hasContentToChat()) {
-                            setShowContentChat(true);
-                            if (chatMessages.length === 0) {
-                              setChatMessages([
-                                {
-                                  role: "system",
-                                  content: `Debug system message`
-                                }
-                              ]);
-                            }
-                            console.log("Debug - Set showContentChat to true");
+                          // Direct approach - navigate to chat page with content
+                          if (generatedContent) {
+                            localStorage.setItem('chatContext', generatedContent);
+                            window.location.href = '/chat?withContext=true';
                           } else {
-                            console.log("Debug - No content to chat about");
+                            toast({
+                              title: "No content",
+                              description: "Please generate content first",
+                              variant: "destructive"
+                            });
                           }
                         }}
                       >
-                        Debug
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Chat About Content
                       </Button>
                     </div>
                   </div>
@@ -2036,7 +2026,7 @@ export default function CreatePage() {
           
           {/* Chat Interface */}
           {showContentChat && (
-            <Card className="mt-4">
+            <Card className="mt-4" key={`chat-interface-${chatKey}`}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <div className="flex items-center">
