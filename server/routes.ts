@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
-import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES } from "@shared/schema";
+import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES, contentResearchSchema, podcastScriptSchema } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
@@ -1137,7 +1137,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           
           // Extract the generated content
-          const generatedContent = message.content[0].text;
+          const content = message.content[0];
+          const generatedContent = typeof content === 'string' ? content : 'text' in content ? content.text : '';
           
           // Update job status to complete
           updateProcessingJob(jobId, {
@@ -1152,15 +1153,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             segment: data.segment,
             totalSegments: data.totalSegments
           });
-        } catch (error) {
+        } catch (err) {
           // Handle error
+          const errorMessage = err instanceof Error ? err.message : "Failed to generate content segment";
           updateProcessingJob(jobId, {
             status: 'error',
-            error: error.message || "Failed to generate content segment"
+            error: errorMessage
           });
           
           return res.status(500).json({
-            error: `Failed to generate content segment: ${error.message}`
+            error: `Failed to generate content segment: ${errorMessage}`
           });
         }
       }
@@ -1214,9 +1216,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             ]
           });
+          // Extract the generated content
+          const content = message.content[0];
+          const generatedContent = typeof content === 'string' ? content : 'text' in content ? content.text : '';
           
           return res.json({
-            content: message.content[0].text,
+            content: generatedContent,
             segment: 1,
             totalSegments: 1
           });
@@ -2307,12 +2312,13 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
         });
         
         // Extract sub-topics
-        const subTopicsContent = message.content[0].text.trim();
-        const subTopics = subTopicsContent
+        const contentBlock = message.content[0];
+        const subTopicsContent = typeof contentBlock === 'string' ? contentBlock : 'text' in contentBlock ? contentBlock.text : '';
+        const subTopics = subTopicsContent.trim()
           .split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0)
-          .map(line => line.replace(/^\d+[\.\)]\s*/, '').trim());
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0)
+          .map((line: string) => line.replace(/^\d+[\.\)]\s*/, '').trim());
         
         if (subTopics.length === 0) {
           throw new Error('Failed to generate valid sub-topics');
@@ -2333,7 +2339,7 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
         
         // Prepare research queries by combining main topic with each sub-topic
         const researchQueries = adjustedSubTopics.map(
-          subTopic => `${data.topic}: ${subTopic}`
+          (subTopic: string) => `${data.topic}: ${subTopic}`
         );
         
         // Execute searches for all sub-topics
@@ -2344,7 +2350,8 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
         updateProcessingJob(jobId, {
           step: 'Generating content based on research',
           progress: 40,
-          searchResults: combinedResearch
+          // Store the combined research in a single-item array to match the type
+          searchResults: [combinedResearch]
         });
         
         // Step 3: Generate the first segment
@@ -2379,7 +2386,8 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
         });
         
         // Extract the generated content
-        const firstSegmentContent = firstSegmentMessage.content[0].text;
+        const content = firstSegmentMessage.content[0];
+        const firstSegmentContent = typeof content === 'string' ? content : 'text' in content ? content.text : '';
         
         // Update job status
         updateProcessingJob(jobId, {
