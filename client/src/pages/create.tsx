@@ -651,14 +651,26 @@ export default function CreatePage() {
     }
     
     try {
-      if (!showContentChat && podcastScript && chatMessages.length === 0) {
-        // Initialize with a system message when first opening the chat
-        setChatMessages([
-          {
-            role: "system",
-            content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
-          }
-        ]);
+      if (!showContentChat && chatMessages.length === 0) {
+        // Content to chat about depends on the mode
+        const hasContent = createMode === "podcast" ? !!podcastScript : !!generatedContent;
+        
+        if (hasContent) {
+          // Initialize with a system message when first opening the chat
+          setChatMessages([
+            {
+              role: "system",
+              content: `Welcome to the content chat! I can answer questions about your ${createMode === "podcast" ? "podcast" : "content"} and provide additional information from the web when relevant.`
+            }
+          ]);
+        } else {
+          toast({
+            title: "No content to chat about",
+            description: "Please generate some content first before starting a chat.",
+            variant: "destructive"
+          });
+          return; // Don't open chat if there's no content
+        }
       }
       setShowContentChat(prevState => !prevState);
     } catch (error) {
@@ -675,7 +687,20 @@ export default function CreatePage() {
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!chatInput.trim() || isChatLoading || !podcastScript) return;
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    // Get the appropriate content based on mode
+    const contentToUse = createMode === "podcast" ? podcastScript : generatedContent;
+    
+    // Make sure we have content to chat about
+    if (!contentToUse) {
+      toast({
+        title: "No content to chat about",
+        description: "Please generate some content first before starting a chat.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Store the current script and content to preserve it if page refreshes
     try {
@@ -692,6 +717,11 @@ export default function CreatePage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       
+      // Get appropriate title based on mode
+      const contentTitle = createMode === "podcast" 
+        ? podcastTopic || "podcast" 
+        : prompt || "generated content";
+      
       // Make API call with timeout and abort controller
       const response = await fetch("/api/content-chat", {
         method: "POST",
@@ -700,8 +730,8 @@ export default function CreatePage() {
         },
         body: JSON.stringify({
           messages: currentMessages,
-          content: podcastScript,
-          contentTitle: podcastTopic || (createMode === "content" ? "generated content" : "podcast")
+          content: contentToUse,
+          contentTitle: contentTitle
         }),
         signal: controller.signal
       });
