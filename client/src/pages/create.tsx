@@ -1950,14 +1950,40 @@ export default function CreatePage() {
                     variant={showContentChat ? "default" : "outline"}
                     className="ml-2"
                     type="button"
-                    onClick={toggleContentChat}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      // Check if there's content to chat about
+                      if (!hasContentToChat()) {
+                        toast({
+                          title: "No content to chat about",
+                          description: "Please generate some content first before starting a chat.",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      
+                      // Initialize with a system message if needed
+                      if (!showContentChat && chatMessages.length === 0) {
+                        const contentType = createMode === "podcast" ? "podcast script" : "generated content";
+                        setChatMessages([
+                          {
+                            role: "system",
+                            content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
+                          }
+                        ]);
+                      }
+                      
+                      // Toggle chat visibility
+                      setShowContentChat(prev => !prev);
+                      console.log("Toggle chat button clicked, chat should now be:", !showContentChat);
+                    }}
                     id="chatToggleBtn"
                   >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     {showContentChat ? "Hide Chat" : "Chat with Content"}
                   </Button>
                   
-                  {/* Debug button - will be removed in production */}
+                  {/* Force Show Chat button */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -1965,34 +1991,35 @@ export default function CreatePage() {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log("Debug button clicked");
-                      console.log("Chat state:", {
+                      
+                      // Log debug info
+                      console.log("Force Show Chat button clicked");
+                      console.log("Current state:", {
                         showContentChat, 
                         hasContent: hasContentToChat(),
-                        messages: chatMessages.length,
-                        chatKey
+                        messages: chatMessages.length
                       });
                       
-                      // Force chat to show with a message
-                      setShowContentChat(true);
-                      
-                      // Add a debug message
-                      const newMessages = [
+                      // Initialize chat with a message
+                      setChatMessages([
                         {
                           role: "system" as const,
-                          content: "Debug message - " + new Date().toISOString()
+                          content: "Chat initialized at " + new Date().toISOString()
                         }
-                      ];
-                      setChatMessages(newMessages);
+                      ]);
                       
+                      // Force the chat to be shown
+                      setShowContentChat(true);
+                      
+                      // Show user feedback
                       toast({
-                        title: "Debug mode activated",
-                        description: "Chat interface should appear now"
+                        title: "Chat interface activated",
+                        description: "The chat should now be visible"
                       });
                     }}
                   >
-                    <Bug className="mr-2 h-4 w-4" />
-                    Debug
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Force Show Chat
                   </Button>
                 </div>
               </CardFooter>
