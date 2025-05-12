@@ -21,23 +21,50 @@ import { AVAILABLE_VOICES } from "@shared/schema";
 import { AudioPlayer } from "@/components/audio-player";
 import { useLocation } from "wouter";
 
+// Common Arion Vale personality traits to be applied to all content
+const ARION_VALE_PERSONALITY = `
+You are Arion Vale, a renowned content creator with the following personality traits:
+- Confident but not arrogant, with a calm, authoritative demeanor
+- Engaging storyteller who makes complex topics accessible
+- Thoughtful and empathetic, with a genuine interest in helping audiences
+- Insightful with occasional witty observations and clever analogies
+- Balanced perspective that considers multiple viewpoints
+- Forward-thinking with an optimistic but realistic outlook
+`;
+
 // Predefined system prompts for different content types
 const CONTENT_TEMPLATES = {
-  story: "You are a creative storyteller and fiction writer. Create engaging, imaginative stories with compelling characters and interesting plots. Make the story immersive and captivating.",
-  article: "You are a professional content writer specializing in informative articles. Create well-researched, factually accurate content that is educational and engaging. Use a clear structure with headings and maintain a professional tone.",
-  scriptTalk: "You are a speech writer specializing in talks and presentations. Create a compelling, well-structured script that is conversational, engaging, and designed to be read aloud. Include natural pauses, emphasis, and conversational language.",
-  marketing: "You are a marketing copywriter. Create persuasive, attention-grabbing content that highlights benefits, addresses pain points, and includes strong calls to action. The tone should be enthusiastic and customer-focused.",
-  creative: "You are a creative content generator. Create unique, innovative content that is thought-provoking and original. Feel free to experiment with format, style, and conventions."
+  story: `${ARION_VALE_PERSONALITY}
+As a creative storyteller and fiction writer, create an engaging, imaginative story with compelling characters and an interesting plot. Make the story immersive and captivating with vivid descriptions and meaningful character development. Draw on relevant cultural references and universal themes that resonate with readers.`,
+  
+  article: `${ARION_VALE_PERSONALITY}
+As a professional content writer specializing in informative articles, create well-researched, factually accurate content that is educational and engaging. Use a clear structure with headings, subheadings, and maintain a professional yet accessible tone. Include relevant examples, data points, and insights that provide value to the reader. Your article should present balanced perspectives while demonstrating expertise in the subject matter.`,
+  
+  tedTalk: `${ARION_VALE_PERSONALITY}
+As a TED Talk writer, create an inspiring, thought-provoking talk in the style of the world's best TED presentations. The talk should:
+- Start with a powerful hook or personal story that introduces the central idea
+- Present a clear through-line with 2-3 key insights or revelations
+- Include memorable examples, metaphors or analogies that make complex ideas accessible
+- Build toward a compelling call to action or perspective shift
+- End with a strong conclusion that connects back to the opening
+- Have a conversational tone with natural pauses and emphasis
+The talk should be approximately 15-18 minutes when read aloud (about 2000-2500 words).`,
+  
+  marketing: `${ARION_VALE_PERSONALITY}
+As a marketing copywriter, create persuasive, attention-grabbing content that highlights benefits, addresses pain points, and includes strong calls to action. The tone should be enthusiastic and customer-focused while remaining authentic. Use compelling headers, bullet points for key benefits, social proof elements, and emotional triggers that resonate with the target audience. The copy should tell a story that positions the product or service as the solution to a specific problem.`,
+  
+  creative: `${ARION_VALE_PERSONALITY}
+As a creative content generator, create unique, innovative content that is thought-provoking and original. Feel free to experiment with format, style, and conventions while maintaining readability and engagement. Incorporate unexpected perspectives, creative metaphors, and imaginative scenarios that challenge conventional thinking. Your content should leave readers with new ideas, questions, or perspectives they hadn't considered before.`
 };
 
 // Content type options for the tabs
 const CONTENT_TYPES = [
   { id: "story", label: "Story", description: "Creative fiction with characters and plot" },
-  { id: "article", label: "Article", description: "Informative, factual content" },
-  { id: "scriptTalk", label: "Script/Talk", description: "Content designed to be spoken aloud" },
-  { id: "marketing", label: "Marketing", description: "Persuasive copy that sells" },
-  { id: "creative", label: "Creative", description: "Unique, experimental content" },
-  { id: "custom", label: "Custom", description: "Your own instructions" }
+  { id: "article", label: "Article", description: "Informative, research-based content with facts and insights" },
+  { id: "tedTalk", label: "TED Talk", description: "Engaging, inspirational talk in TED presentation style" },
+  { id: "marketing", label: "Marketing", description: "Persuasive copy that sells products or services" },
+  { id: "creative", label: "Creative", description: "Unique, experimental content with creative flair" },
+  { id: "custom", label: "Custom", description: "Your own instructions for personalized content" }
 ];
 
 // Function to convert file to base64
@@ -80,6 +107,20 @@ export default function CreatePage() {
   const [temperature, setTemperature] = useState(0.7);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [maxOutputTokens, setMaxOutputTokens] = useState(4000);
+  
+  // Content creation extended research mode states
+  const [contentExtendedMode, setContentExtendedMode] = useState(false);
+  const [contentSegments, setContentSegments] = useState(3); // Default to 3 segments for extended mode
+  const [contentCurrentSegment, setContentCurrentSegment] = useState(1);
+  const [contentSubTopics, setContentSubTopics] = useState<string[]>([]);
+  const [contentResearchResults, setContentResearchResults] = useState("");
+  const [contentResearchFinished, setContentResearchFinished] = useState(false);
+  const [contentGenerationProgress, setContentGenerationProgress] = useState(0);
+  const [contentGeneratingSegment, setContentGeneratingSegment] = useState(false);
+  const [contentGeneratedSegments, setContentGeneratedSegments] = useState<Record<number, string>>({});
+  const [contentCombinedContent, setContentCombinedContent] = useState("");
+  const [contentProcessingJobId, setContentProcessingJobId] = useState<number | null>(null);
+  const [contentResearchStep, setContentResearchStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Podcast creation states
@@ -186,31 +227,99 @@ export default function CreatePage() {
   };
 
   // Mutation for generating content
-  const generationMutation = useMutation({
+  // Content research and generation mutation
+  const contentResearchMutation = useMutation({
     mutationFn: async () => {
+      // Initialize the system prompt
       const systemPrompt = contentType === "custom" 
         ? customSystemPrompt 
         : CONTENT_TEMPLATES[contentType as keyof typeof CONTENT_TEMPLATES];
       
-      return apiRequest("/api/gemini/generate", {
+      // For extended mode, set initial state
+      if (contentExtendedMode) {
+        setContentResearchStep("Analyzing topic and planning sub-topics");
+        setContentGenerationProgress(10);
+      }
+      
+      return apiRequest("/api/content/research", {
         method: "POST",
         data: {
-          prompt,
-          systemPrompt,
-          temperature,
-          maxOutputTokens,
+          topic: prompt,
+          contentType: contentType,
+          systemPrompt: systemPrompt,
+          temperature: temperature,
+          maxOutputTokens: maxOutputTokens,
+          segment: contentCurrentSegment,
+          totalSegments: contentExtendedMode ? contentSegments : 1,
+          previousContent: contentCurrentSegment > 1 ? Object.values(contentGeneratedSegments).join("\n\n") : "",
+          searchResults: contentResearchResults,
+          extendedMode: contentExtendedMode,
           images: useImages ? imageBase64 : undefined
         }
       });
     },
     onSuccess: (data) => {
-      setGeneratedContent(data.text);
-      toast({
-        title: "Content generated",
-        description: "Your content has been created successfully!"
-      });
+      if (contentExtendedMode) {
+        // For extended mode, handle multi-part content
+        if (data.subTopics && contentCurrentSegment === 1) {
+          setContentSubTopics(data.subTopics);
+        }
+        
+        if (data.researchResults) {
+          setContentResearchResults(data.researchResults);
+          setContentResearchFinished(true);
+        }
+        
+        if (data.script || data.content) {
+          const generatedText = data.script || data.content;
+          
+          // Store segment
+          setContentGeneratedSegments(prev => ({
+            ...prev,
+            [contentCurrentSegment]: generatedText
+          }));
+          
+          // If this is the last segment or only has one segment
+          if (contentCurrentSegment >= contentSegments) {
+            // Combine all segments
+            const allSegments = {
+              ...contentGeneratedSegments,
+              [contentCurrentSegment]: generatedText
+            };
+            
+            const combined = Object.keys(allSegments)
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map(key => allSegments[parseInt(key)])
+              .join("\n\n");
+            
+            setContentCombinedContent(combined);
+            setGeneratedContent(combined);
+          } else {
+            // Just show the current segment
+            setGeneratedContent(generatedText);
+          }
+        }
+        
+        // Clear job ID
+        setContentProcessingJobId(null);
+        
+        toast({
+          title: contentCurrentSegment >= contentSegments ? "Content Complete" : "Segment Complete",
+          description: contentCurrentSegment >= contentSegments 
+            ? "Your complete content has been generated!" 
+            : `Segment ${contentCurrentSegment} of ${contentSegments} has been generated.`
+        });
+      } else {
+        // For regular mode, just set the content
+        setGeneratedContent(data.script || data.content);
+        toast({
+          title: "Content Generated",
+          description: "Your content has been created successfully!"
+        });
+      }
     },
     onError: (error: Error) => {
+      setContentProcessingJobId(null);
       toast({
         title: "Error",
         description: `Failed to generate content: ${error.message || "Unknown error"}`,
