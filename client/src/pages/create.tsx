@@ -1132,40 +1132,106 @@ export default function CreatePage() {
               
               <Separator />
               
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="temperature">Temperature: {temperature}</Label>
-                </div>
-                <Slider
-                  id="temperature"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={[temperature]}
-                  onValueChange={(value) => setTemperature(value[0])}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lower values produce more focused and deterministic outputs. Higher values produce more creative and varied outputs.
-                </p>
-              </div>
-
+              {/* All advanced settings moved to the advanced section */}
               {showAdvanced && (
-                <div className="space-y-2 pt-2">
+                <div className="space-y-4 pt-2">
                   <Separator className="my-2" />
-                  <div className="flex justify-between">
-                    <Label htmlFor="max-tokens">Max Output Tokens: {maxOutputTokens}</Label>
+                  
+                  {/* Temperature control */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="temperature">Temperature: {temperature}</Label>
+                    </div>
+                    <Slider
+                      id="temperature"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={[temperature]}
+                      onValueChange={(value) => setTemperature(value[0])}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Lower values produce more focused and deterministic outputs. Higher values produce more creative and varied outputs.
+                    </p>
                   </div>
-                  <Slider
-                    id="max-tokens"
-                    min={100}
-                    max={8000}
-                    step={100}
-                    value={[maxOutputTokens]}
-                    onValueChange={(value) => setMaxOutputTokens(value[0])}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    The maximum number of tokens (words/characters) in the generated response.
-                  </p>
+                  
+                  {/* Max tokens control */}
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="max-tokens">Max Output Tokens: {maxOutputTokens}</Label>
+                    </div>
+                    <Slider
+                      id="max-tokens"
+                      min={100}
+                      max={8000}
+                      step={100}
+                      value={[maxOutputTokens]}
+                      onValueChange={(value) => setMaxOutputTokens(value[0])}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The maximum number of tokens (words/characters) in the generated response.
+                    </p>
+                  </div>
+                  
+                  {/* Image upload toggle */}
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        checked={useImages} 
+                        onCheckedChange={setUseImages} 
+                        id="use-images" 
+                      />
+                      <Label htmlFor="use-images">Include Images</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Upload images to generate content that references them. Only works with Gemini model.
+                    </p>
+                    
+                    {useImages && (
+                      <div className="mt-2">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleImageUpload}
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                        />
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full"
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload Images
+                        </Button>
+                        
+                        {images.length > 0 && (
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            {images.map((image, index) => (
+                              <div key={index} className="relative group">
+                                <img
+                                  src={URL.createObjectURL(image)}
+                                  alt={`Uploaded image ${index + 1}`}
+                                  className="w-full h-auto rounded-md object-cover"
+                                />
+                                <Button
+                                  variant="destructive"
+                                  size="icon"
+                                  className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => removeImage(index)}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -1167,69 +1167,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // For non-extended mode or standard content generation
-      log(`Generating standard content for topic: "${data.topic}"`);
+      // For non-extended mode but still with research
+      log(`Generating standard content with research for topic: "${data.topic}"`);
       
-      // Use Gemini for image support when images are provided
-      if (data.images && data.images.length > 0) {
-        try {
-          const result = await generateGeminiContent({
-            prompt: data.topic,
-            systemPrompt: data.systemPrompt,
-            temperature: data.temperature,
-            maxOutputTokens: data.maxOutputTokens,
-            images: data.images
+      // Create a job for single-segment content generation with research
+      const jobId = createProcessingJob('podcast', {
+        type: 'podcast',
+        step: 'Researching topic with Perplexity',
+        progress: 10
+      });
+      
+      try {
+        // Check if Perplexity API key is available
+        if (!process.env.PERPLEXITY_API_KEY) {
+          updateProcessingJob(jobId, {
+            status: 'error',
+            error: 'Perplexity API key is not available.'
           });
-          
-          return res.json({
-            content: result.text,
-            segment: 1,
-            totalSegments: 1
-          });
-        } catch (error) {
           return res.status(500).json({
-            error: `Failed to generate content with Gemini: ${error.message}`
+            error: 'Perplexity API key is missing'
           });
         }
-      } else {
-        // Use Claude for text-only content (better quality)
-        try {
-          const anthropic = new Anthropic({
-            apiKey: process.env.ANTHROPIC_API_KEY
-          });
-          
-          const message = await anthropic.messages.create({
-            model: "claude-3-7-sonnet-20250219",
-            max_tokens: data.maxOutputTokens,
-            temperature: data.temperature,
-            system: "You are an expert content creator named Arion Vale. You craft engaging, authentic, and insightful content.",
-            messages: [
-              { 
-                role: "user", 
-                content: `
-                  ${data.systemPrompt}
-                  
-                  Topic: ${data.topic}
-                  
-                  Please create ${data.contentType} content based on this topic.
-                `
-              }
-            ]
-          });
-          // Extract the generated content
-          const content = message.content[0];
-          const generatedContent = typeof content === 'string' ? content : 'text' in content ? content.text : '';
-          
-          return res.json({
-            content: generatedContent,
-            segment: 1,
-            totalSegments: 1
-          });
-        } catch (error) {
-          return res.status(500).json({
-            error: `Failed to generate content with Claude: ${error.message}`
-          });
+        
+        // First, research the topic with Perplexity
+        log(`Researching topic: "${data.topic}" with Perplexity`);
+        updateProcessingJob(jobId, {
+          step: 'Researching with Perplexity',
+          progress: 20
+        });
+        
+        // Execute search for the main topic
+        const researchResults = await executeMultipleSearches([data.topic]);
+        const combinedResearch = researchResults.join('\n\n=== NEXT RESEARCH SECTION ===\n\n');
+        
+        updateProcessingJob(jobId, {
+          step: 'Generating content based on research',
+          progress: 50,
+          searchResults: [combinedResearch]
+        });
+        
+        // Use Gemini for image support when images are provided
+        if (data.images && data.images.length > 0) {
+          try {
+            // Create prompt that includes research
+            const prompt = `
+            Topic: ${data.topic}
+            
+            Research information to incorporate:
+            ${combinedResearch.substring(0, 6000)} # Limit the context to avoid token limits
+            
+            Create ${data.contentType} content about this topic, incorporating insights from the research.
+            `;
+            
+            const result = await generateGeminiContent({
+              prompt: prompt,
+              systemPrompt: data.systemPrompt,
+              temperature: data.temperature,
+              maxOutputTokens: data.maxOutputTokens,
+              images: data.images
+            });
+            
+            updateProcessingJob(jobId, {
+              status: 'complete',
+              progress: 100,
+              script: result.text
+            });
+            
+            return res.json({
+              jobId,
+              content: result.text,
+              segment: 1,
+              totalSegments: 1
+            });
+          } catch (error) {
+            updateProcessingJob(jobId, {
+              status: 'error',
+              error: `Failed to generate content with Gemini: ${error.message}`
+            });
+            return res.status(500).json({
+              error: `Failed to generate content with Gemini: ${error.message}`
+            });
+          }
+        } else {
+          // Use Claude for text-only content (better quality)
+          try {
+            const anthropic = new Anthropic({
+              apiKey: process.env.ANTHROPIC_API_KEY
+            });
+            
+            // Create enriched prompt that includes research
+            const contentPrompt = `
+            ${data.systemPrompt}
+            
+            Topic: ${data.topic}
+            
+            Research information to incorporate:
+            ${combinedResearch.substring(0, 12000)} # Limit the context to avoid token limits
+            
+            Please create ${data.contentType} content based on this topic, incorporating insights from the research.
+            Write the content from scratch in your own words while integrating insights from the research.
+            `;
+            
+            const message = await anthropic.messages.create({
+              model: "claude-3-7-sonnet-20250219",
+              max_tokens: data.maxOutputTokens,
+              temperature: data.temperature,
+              system: "You are an expert content creator named Arion Vale. You craft engaging, authentic, and insightful content.",
+              messages: [{ role: "user", content: contentPrompt }]
+            });
+            
+            // Extract the generated content
+            const content = message.content[0];
+            const generatedContent = typeof content === 'string' ? content : 'text' in content ? content.text : '';
+            
+            updateProcessingJob(jobId, {
+              status: 'complete',
+              progress: 100,
+              script: generatedContent
+            });
+            
+            return res.json({
+              jobId,
+              content: generatedContent,
+              segment: 1,
+              totalSegments: 1
+            });
+          } catch (error) {
+            updateProcessingJob(jobId, {
+              status: 'error',
+              error: `Failed to generate content with Claude: ${error.message}`
+            });
+            return res.status(500).json({
+              error: `Failed to generate content with Claude: ${error.message}`
+            });
+          }
         }
+      } catch (error) {
+        updateProcessingJob(jobId, {
+          status: 'error',
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+        return res.status(500).json({
+          error: `Failed to research and generate content: ${error instanceof Error ? error.message : "Unknown error"}`
+        });
       }
     } catch (error) {
       log(`Error in /api/content/research: ${error.message}`);
