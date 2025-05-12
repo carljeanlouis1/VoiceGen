@@ -14,10 +14,11 @@ import { Progress } from "@/components/ui/progress";
 import { 
   Loader2, Copy, Upload, Image as ImageIcon, MessageSquare, Sparkles, Send,
   Radio, Mic, Search, Play, Headphones, FileAudio, BookOpen, Pencil, CheckCircle2, 
-  Volume2, Download, Square, Info as InfoIcon, X
+  Volume2, Download, Square, Info as InfoIcon, X, Bug
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
+import { ContentChat } from "@/components/content-chat";
 import { apiRequest } from "@/lib/queryClient";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AVAILABLE_VOICES } from "@shared/schema";
@@ -631,17 +632,8 @@ export default function CreatePage() {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [processingProgress, setProcessingProgress] = useState(0);
   
-  // Content chat states
+  // Simple chat visibility state - all other chat state managed by the ContentChat component
   const [showContentChat, setShowContentChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Array<{role: "user" | "assistant" | "system", content: string}>>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatCitations, setChatCitations] = useState<string[]>([]);
-  const [chatRelatedQuestions, setChatRelatedQuestions] = useState<string[]>([]);
-  const [chatKey, setChatKey] = useState(0); // Force chat interface to re-render
-  
-  // Reference for auto-scrolling the chat
-  const chatScrollRef = useRef<HTMLDivElement>(null);
   
   // Helper function to get the appropriate content based on mode
   const getCurrentContent = () => {
@@ -657,16 +649,13 @@ export default function CreatePage() {
     return createMode === "podcast" ? !!podcastScript : !!generatedContent;
   };
   
-  // Toggle the in-page chat interface - completely rewritten approach
+  // Simple toggle function for chat visibility
   const toggleContentChat = (e?: React.MouseEvent) => {
     // Prevent any default behavior if this is called from an event
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    
-    console.log("----- TOGGLE CHAT FUNCTION CALLED -----");
-    console.log("Current state:", {showContentChat, createMode, hasContent: hasContentToChat()});
     
     // Check if there's content to chat about
     if (!hasContentToChat()) {
@@ -678,37 +667,8 @@ export default function CreatePage() {
       return; // Don't proceed if no content
     }
     
-    // Initialize with a system message when first opening the chat
-    if (!showContentChat && chatMessages.length === 0) {
-      const contentType = createMode === "podcast" ? "podcast script" : "generated content";
-      const systemMsg = {
-        role: "system" as const,
-        content: `Welcome to the content chat! I can answer questions about your ${contentType} and provide additional information from the web when relevant.`
-      };
-      console.log("Adding system message:", systemMsg);
-      setChatMessages([systemMsg]);
-    }
-    
-    // New approach: Use a callback with a timeout to ensure state updates
-    const toggleChatVisibility = () => {
-      // Set the state with a callback to ensure we get the latest state
-      setShowContentChat(prev => {
-        const newState = !prev;
-        console.log(`Chat visibility toggling to:`, newState);
-        return newState;
-      });
-      
-      // Force re-render with a new key
-      setChatKey(prev => prev + 1);
-    };
-    
-    // Execute the toggle with a slight delay to ensure clean state transitions
-    setTimeout(toggleChatVisibility, 10);
-    
-    // Log when it's done
-    setTimeout(() => {
-      console.log("After toggle completed, chat state should be updated");
-    }, 50);
+    // Just toggle the visibility state - all other chat logic is in the ContentChat component
+    setShowContentChat(prev => !prev);
   };
   
   // Handle sending a message in the chat
