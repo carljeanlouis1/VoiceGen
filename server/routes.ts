@@ -2519,25 +2519,39 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
     }
   }
 
-  // Create a memory usage monitor middleware to detect potential memory issues
+  // Create a memory usage monitor middleware with cleanup
   app.use((req, res, next) => {
     const memoryUsage = process.memoryUsage();
     const mbUsed = Math.round(memoryUsage.rss / 1024 / 1024);
     
-    // Log high memory usage as a warning
+    // Implement aggressive cleanup when memory usage is high
     if (mbUsed > 300) {
-      console.warn(`HIGH MEMORY USAGE: ${mbUsed} MB`);
+      // Clear any module caches that might be holding references
+      Object.keys(require.cache).forEach((key) => {
+        if (key.includes('node_modules')) return; // Skip core modules
+        delete require.cache[key];
+      });
       
-      // If memory usage is critically high, try to recover
-      if (mbUsed > 500) {
-        console.warn(`CRITICAL MEMORY USAGE! Attempting to recover...`);
-        
-        // Try to force garbage collection if available
-        if (global.gc) {
-          console.warn(`Running garbage collection`);
+      // Force garbage collection if available
+      if (global.gc) {
+        try {
           global.gc();
+          console.log(`Memory cleanup performed at ${mbUsed}MB`);
+        } catch (err) {
+          console.error('GC failed:', err);
         }
       }
+      
+      // Clear any stored audio files that are older than 1 hour
+      const audioFiles = storage.getAudioFiles();
+      audioFiles.then(files => {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        files.forEach(file => {
+          if (file.createdAt < oneHourAgo) {
+            storage.deleteAudioFile(file.id);
+          }
+        });
+      }).catch(err => console.error('Error cleaning audio files:', err));
     }
     
     next();
