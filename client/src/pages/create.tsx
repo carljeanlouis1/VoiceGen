@@ -491,10 +491,15 @@ export default function CreatePage() {
           // Increment the segment counter
           setContentCurrentSegment(nextSegment);
           
-          // Start generating the next segment after a short delay
+          // Start generating the next segment after a longer delay to allow server to recover
+          toast({
+            title: "Memory optimization",
+            description: "Waiting 3 seconds between segments to prevent server overload."
+          });
+          
           setTimeout(() => {
             contentResearchMutation.mutate();
-          }, 1000);
+          }, 3000);
         } else {
           // We're done with all segments
           setContentProcessingJobId(null);
@@ -503,6 +508,17 @@ export default function CreatePage() {
             title: "Content Complete",
             description: "Your complete content has been generated!"
           });
+          
+          // Clean up large data objects to save memory after 5 minutes
+          setTimeout(() => {
+            // If the content is still displayed, show a warning
+            if (contentCombinedContent.length > 0) {
+              toast({
+                title: "Memory Management",
+                description: "To prevent browser crashes with large content, consider copying or downloading your content soon.",
+              });
+            }
+          }, 300000); // 5 minutes
         }
       } else {
         // For regular mode, just set the content

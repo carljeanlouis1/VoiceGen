@@ -2519,6 +2519,30 @@ ${allResearch.substring(0, 5000)}`;  // Limit research for conclusion to 5000 ch
     }
   }
 
+  // Create a memory usage monitor middleware to detect potential memory issues
+  app.use((req, res, next) => {
+    const memoryUsage = process.memoryUsage();
+    const mbUsed = Math.round(memoryUsage.rss / 1024 / 1024);
+    
+    // Log high memory usage as a warning
+    if (mbUsed > 300) {
+      console.warn(`HIGH MEMORY USAGE: ${mbUsed} MB`);
+      
+      // If memory usage is critically high, try to recover
+      if (mbUsed > 500) {
+        console.warn(`CRITICAL MEMORY USAGE! Attempting to recover...`);
+        
+        // Try to force garbage collection if available
+        if (global.gc) {
+          console.warn(`Running garbage collection`);
+          global.gc();
+        }
+      }
+    }
+    
+    next();
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
