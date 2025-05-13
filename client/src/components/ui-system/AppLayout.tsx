@@ -63,11 +63,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
             <Link href="/">
-              <a className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 cursor-pointer">
                 <span className={`text-xl font-medium bg-gradient-to-r from-[${COLORS.primary}] to-[${COLORS.secondary}] bg-clip-text text-transparent`}>
                   VoiceGen
                 </span>
-              </a>
+              </div>
             </Link>
             
             {/* Desktop Navigation */}
@@ -79,8 +79,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 
                 return (
                   <Link key={item.name} href={item.href}>
-                    <a 
-                      className={`flex items-center space-x-1 px-3 py-2 rounded-full transition-colors ${
+                    <div 
+                      className={`flex items-center space-x-1 px-3 py-2 rounded-full transition-colors cursor-pointer ${
                         isActive 
                           ? `text-white bg-[${COLORS.backgroundTertiary}]` 
                           : 'text-zinc-400 hover:text-white'
@@ -88,7 +88,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     >
                       <ItemIcon className="h-4 w-4" />
                       <span>{item.name}</span>
-                    </a>
+                    </div>
                   </Link>
                 );
               })}
@@ -141,8 +141,8 @@ export function AppLayout({ children }: AppLayoutProps) {
               
               return (
                 <Link key={item.name} href={item.href}>
-                  <a
-                    className={`flex items-center space-x-4 p-4 rounded-xl transition-colors ${
+                  <div
+                    className={`flex items-center space-x-4 p-4 rounded-xl transition-colors cursor-pointer ${
                       isActive 
                         ? `bg-[${COLORS.backgroundTertiary}] text-white` 
                         : 'text-zinc-400 hover:text-white'
@@ -151,7 +151,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   >
                     <ItemIcon className="h-6 w-6" />
                     <span className="text-lg">{item.name}</span>
-                  </a>
+                  </div>
                 </Link>
               );
             })}

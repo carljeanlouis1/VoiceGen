@@ -14,8 +14,9 @@ import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
 
-// Import ApLayout component
+// Import UI system components
 import { AppLayout } from "@/components/ui-system/AppLayout";
+import { InputField } from "@/components/ui-system/InputField";
 
 interface Message {
   role: "user" | "assistant" | "system";
