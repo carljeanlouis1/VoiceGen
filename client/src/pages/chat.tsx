@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AudioFile } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+// Import custom Card components 
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui-system/Card";
+import { Button } from "@/components/ui-system/Button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
+
+// Import ApLayout component
+import { AppLayout } from "@/components/ui-system/AppLayout";
 
 interface Message {
   role: "user" | "assistant" | "system";
