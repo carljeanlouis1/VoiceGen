@@ -5,20 +5,17 @@ import { useMutation } from "@tanstack/react-query";
 import { AVAILABLE_VOICES, textToSpeechSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { AudioPlayer } from "./audio-player";
-import { Play, Square, Loader2, Clock } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Play, Square, Loader2, Clock, Music, MusicIcon, Image } from "lucide-react";
+
+// Import our new UI components
+import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "@/components/ui-system/Card";
+import { Button } from "@/components/ui-system/Button";
+import { InputField } from "@/components/ui-system/InputField";
+import { COLORS, SHADOWS } from "@/components/ui-system/design-tokens";
 import {
   Form,
   FormControl,
@@ -329,7 +326,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
               <FormItem>
                 <FormLabel>Title</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter a title..." {...field} />
+                  <InputField placeholder="Enter a title..." {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -391,15 +388,13 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                       <Button
                         key={voice}
                         type="button"
-                        variant={selectedVoice === voice ? "default" : "outline"}
-                        className={`flex items-center justify-between gap-2 ${
-                          selectedVoice === voice ? "border-2 border-primary" : ""
-                        }`}
+                        variant={selectedVoice === voice ? "primary" : "outline"}
+                        className="flex items-center justify-between gap-2"
                         onClick={() => toggleVoiceSample(voice)}
                       >
                         <span className="capitalize">{voice}</span>
                         {playingVoice === "loading" ? (
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                         ) : playingVoice === voice ? (
                           <Square className="h-4 w-4" />
                         ) : (
