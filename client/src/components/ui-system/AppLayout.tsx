@@ -170,11 +170,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <Link href="/">
-                <a>
+                <div className="cursor-pointer">
                   <span className={`text-lg font-medium bg-gradient-to-r from-[${COLORS.primary}] to-[${COLORS.secondary}] bg-clip-text text-transparent`}>
                     VoiceGen
                   </span>
-                </a>
+                </div>
               </Link>
               <p className="text-sm text-zinc-500 mt-2">
                 © {new Date().getFullYear()} VoiceGen
@@ -184,9 +184,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="flex space-x-6">
               {navItems.map((item) => (
                 <Link key={item.name} href={item.href}>
-                  <a className="text-sm text-zinc-500 hover:text-white transition-colors">
+                  <div className="text-sm text-zinc-500 hover:text-white transition-colors cursor-pointer">
                     {item.name}
-                  </a>
+                  </div>
                 </Link>
               ))}
             </div>
