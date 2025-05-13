@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { THEME } from "./constants";
 
 export function Navigation() {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   const [hasScrolled, setHasScrolled] = useState(false);
   
   // Handle scroll effects

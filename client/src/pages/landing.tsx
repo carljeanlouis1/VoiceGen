@@ -1,10 +1,78 @@
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Headphones, MessageSquare, Search, Library, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, Headphones, MessageSquare, Search, Library, Sparkles, Undo2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+
+// Import the Apple-style landing page components
+import {
+  Navigation,
+  Hero,
+  Features,
+  Examples,
+  Testimonials,
+  CTASection,
+  Footer
+} from "@/components/landing";
 
 export default function LandingPage() {
+  // Toggle state for the new design
+  const [showNewDesign, setShowNewDesign] = useState(() => {
+    // Initialize from localStorage if available, default to true to show new design
+    const savedPref = localStorage.getItem("showNewDesign");
+    return savedPref !== null ? savedPref === "true" : true;
+  });
+
+  // Save preference to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem("showNewDesign", String(showNewDesign));
+  }, [showNewDesign]);
+
+  // Return the Apple-style design if showNewDesign is true
+  if (showNewDesign) {
+    return (
+      <div className="relative">
+        {/* Design toggle - fixed in the bottom right corner */}
+        <div className="fixed bottom-4 right-4 z-50 bg-zinc-900/80 backdrop-blur-sm p-3 rounded-full shadow-lg flex items-center gap-2">
+          <Label htmlFor="design-toggle" className="text-xs text-white">Original</Label>
+          <Switch
+            id="design-toggle"
+            checked={showNewDesign}
+            onCheckedChange={setShowNewDesign}
+          />
+          <Label htmlFor="design-toggle" className="text-xs text-white">New</Label>
+        </div>
+        
+        {/* Apple-style landing page */}
+        <div className="min-h-screen bg-gradient-to-b from-zinc-900 via-zinc-800 to-black text-zinc-200">
+          <Navigation />
+          <Hero />
+          <Features />
+          <Examples />
+          <Testimonials />
+          <CTASection />
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  // Return the original design if showNewDesign is false
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col">
+      {/* Design toggle - fixed in the bottom right corner */}
+      <div className="fixed bottom-4 right-4 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-3 rounded-full shadow-lg flex items-center gap-2">
+        <Label htmlFor="design-toggle" className="text-xs">Original</Label>
+        <Switch
+          id="design-toggle"
+          checked={showNewDesign}
+          onCheckedChange={setShowNewDesign}
+        />
+        <Label htmlFor="design-toggle" className="text-xs">New</Label>
+      </div>
+      
+      {/* Original Landing Page Design */}
       {/* Hero Section */}
       <section className="relative px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-950">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>

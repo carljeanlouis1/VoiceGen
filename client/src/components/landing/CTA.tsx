@@ -1,10 +1,10 @@
-import { useNavigate } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { CTA, THEME } from "./constants";
 
 export function CTASection() {
-  const navigate = useNavigate();
+  const [, navigate] = useLocation();
   
   return (
     <section className="py-24 px-8">
