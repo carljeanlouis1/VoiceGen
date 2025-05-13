@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AudioFile } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
+
+// Import our new UI components
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui-system/Card";
+import { Button } from "@/components/ui-system/Button";
+import { InputField } from "@/components/ui-system/InputField"; 
+import { AppLayout } from "@/components/ui-system/AppLayout";
+import { COLORS, SHADOWS } from "@/components/ui-system/design-tokens";
 
 interface Message {
   role: "user" | "assistant" | "system";
