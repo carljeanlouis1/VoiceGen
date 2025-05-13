@@ -54,9 +54,7 @@ export function Footer() {
                 <li>
                   <a href="#examples" className="text-sm text-zinc-500 hover:text-white transition-colors">Examples</a>
                 </li>
-                <li>
-                  <a href="#testimonials" className="text-sm text-zinc-500 hover:text-white transition-colors">Testimonials</a>
-                </li>
+
               </ul>
             </div>
             

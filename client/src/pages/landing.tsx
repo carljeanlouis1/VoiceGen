@@ -50,7 +50,6 @@ export default function LandingPage() {
           <Hero />
           <Features />
           <Examples />
-          <Testimonials />
           <CTASection />
           <Footer />
         </div>

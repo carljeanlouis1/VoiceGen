@@ -1,28 +1,49 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 import { EXAMPLES, THEME } from "./constants";
 
 export function Examples() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   
+  // Preload audio
+  useEffect(() => {
+    // Set actual demo audio file
+    if (audioRef.current) {
+      audioRef.current.src = "/voice-samples/shimmer.mp3";
+      audioRef.current.load();
+    }
+  }, []);
+  
   const handlePlayAudio = async () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      // If audio fails to load, just update the visual state
+      setIsPlaying(!isPlaying);
+      return;
+    }
     
     try {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
-        // Using await with a try/catch to properly handle interruptions
-        await audioRef.current.play();
-        setIsPlaying(true);
+        // Attempt to play audio
+        try {
+          audioRef.current.currentTime = 0; // Reset to start
+          await audioRef.current.play();
+          setIsPlaying(true);
+        } catch (err) {
+          // Even if audio fails, still show visual feedback
+          console.log("Audio playback failed, using animation only:", err);
+          setIsPlaying(true);
+        }
       }
     } catch (error) {
-      // Handle aborted play requests gracefully
-      console.log("Audio playback interrupted:", error);
-      setIsPlaying(false);
+      // Handle any other errors gracefully
+      console.log("Error handling audio:", error);
+      // Still toggle the animation state for visual feedback
+      setIsPlaying(!isPlaying);
     }
   };
   
@@ -86,7 +107,11 @@ export function Examples() {
                     variant="outline"
                     className={`rounded-full w-12 h-12 border-2 border-[${THEME.primary}] hover:bg-[${THEME.primary}]/20 transition-all flex items-center justify-center z-10`}
                   >
-                    <Play className={`h-5 w-5 ml-0.5 text-[${THEME.primary}]`} />
+                    {isPlaying ? (
+                      <Pause className={`h-5 w-5 text-[${THEME.primary}]`} />
+                    ) : (
+                      <Play className={`h-5 w-5 ml-0.5 text-[${THEME.primary}]`} />
+                    )}
                   </Button>
                 </div>
                 

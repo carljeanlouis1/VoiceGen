@@ -37,7 +37,6 @@ export function Navigation() {
           {/* Landing page section links */}
           <a href="#features" className="text-sm hover:text-white transition-colors">Features</a>
           <a href="#examples" className="text-sm hover:text-white transition-colors">Examples</a>
-          <a href="#testimonials" className="text-sm hover:text-white transition-colors">Testimonials</a>
           
           {/* App navigation */}
           <div className="pl-8 border-l border-zinc-700 flex items-center space-x-6">
@@ -115,13 +114,7 @@ export function Navigation() {
               >
                 Examples
               </a>
-              <a 
-                href="#testimonials" 
-                className="block text-zinc-300 hover:text-white transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Testimonials
-              </a>
+
             </div>
             
             {/* App navigation */}

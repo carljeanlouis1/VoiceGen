@@ -10,6 +10,15 @@ export function Hero() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
+  // Preload audio
+  useEffect(() => {
+    // Set actual demo audio file
+    if (audioRef.current) {
+      audioRef.current.src = "/voice-samples/shimmer.mp3";
+      audioRef.current.load();
+    }
+  }, []);
+
   // Audio visualization effect
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,10 +43,11 @@ export function Hero() {
       
       // Generate waveform points
       for (let x = 0; x < canvas.width; x += 3) {
-        // When playing, create dynamic wave
+        // When playing, create dynamic wave with more pronounced movement when playing
+        const speed = isPlaying ? 0.005 : 0.001;
         const amplitude = isPlaying 
-          ? Math.sin(x * 0.01 + Date.now() * 0.003) * 20 + 
-            Math.sin(x * 0.02 + Date.now() * 0.001) * 10
+          ? Math.sin(x * 0.01 + Date.now() * speed) * 20 + 
+            Math.sin(x * 0.02 + Date.now() * (speed/2)) * 10
           : Math.sin(x * 0.05) * 5;
         
         ctx.lineTo(x, centerY + amplitude);
@@ -53,23 +63,35 @@ export function Hero() {
     return () => cancelAnimationFrame(animationId);
   }, [isPlaying]);
   
-  // Handle audio playback with error handling
+  // Handle audio playback with error handling and fallback to animation only
   const handlePlayAudio = async () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      // If audio fails to load, just animate the waveform
+      setIsPlaying(!isPlaying);
+      return;
+    }
     
     try {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
-        // Using await with a try/catch to properly handle interruptions
-        await audioRef.current.play();
-        setIsPlaying(true);
+        // Attempt to play audio
+        try {
+          audioRef.current.currentTime = 0; // Reset to start
+          await audioRef.current.play();
+          setIsPlaying(true);
+        } catch (err) {
+          // Even if audio fails, still animate the waveform
+          console.log("Audio playback failed, using animation only:", err);
+          setIsPlaying(true);
+        }
       }
     } catch (error) {
-      // Handle aborted play requests gracefully
-      console.log("Audio playback interrupted:", error);
-      setIsPlaying(false);
+      // Handle any other errors gracefully
+      console.log("Error handling audio:", error);
+      // Still toggle the animation state for visual feedback
+      setIsPlaying(!isPlaying);
     }
   };
   
