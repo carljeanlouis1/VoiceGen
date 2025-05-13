@@ -53,17 +53,24 @@ export function Hero() {
     return () => cancelAnimationFrame(animationId);
   }, [isPlaying]);
   
-  // Handle audio playback
-  const handlePlayAudio = () => {
+  // Handle audio playback with error handling
+  const handlePlayAudio = async () => {
     if (!audioRef.current) return;
     
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
+    try {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        // Using await with a try/catch to properly handle interruptions
+        await audioRef.current.play();
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      // Handle aborted play requests gracefully
+      console.log("Audio playback interrupted:", error);
+      setIsPlaying(false);
     }
-    
-    setIsPlaying(!isPlaying);
   };
   
   return (
@@ -88,15 +95,16 @@ export function Hero() {
             {HERO.subheadline}
           </p>
           
-          <Button 
-            onClick={() => navigate("/home")}
-            size="lg"
-            className={`rounded-full bg-gradient-to-r from-[${THEME.primary}] to-[${THEME.secondary}] hover:opacity-90 transition-all py-6 px-8 text-lg`}
-          >
-            {/* CUSTOMIZE: Update button text in constants.ts */}
-            {HERO.ctaText}
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+          <Link href="/convert">
+            <Button 
+              size="lg"
+              className={`rounded-full bg-gradient-to-r from-[${THEME.primary}] to-[${THEME.secondary}] hover:opacity-90 transition-all py-6 px-8 text-lg`}
+            >
+              {/* CUSTOMIZE: Update button text in constants.ts */}
+              {HERO.ctaText}
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </div>
         
         {/* Animated Waveform */}

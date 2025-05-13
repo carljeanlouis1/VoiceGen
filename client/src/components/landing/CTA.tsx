@@ -20,15 +20,16 @@ export function CTASection() {
             {CTA.description}
           </p>
           
-          <Button 
-            onClick={() => navigate("/home")}
-            size="lg"
-            className="rounded-full bg-white text-black hover:bg-white/90 transition-all py-6 px-8 text-lg"
-          >
-            {/* CUSTOMIZE: Update CTA button text in constants.ts */}
-            {CTA.buttonText}
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+          <Link href="/convert">
+            <Button 
+              size="lg"
+              className="rounded-full bg-white text-black hover:bg-white/90 transition-all py-6 px-8 text-lg"
+            >
+              {/* CUSTOMIZE: Update CTA button text in constants.ts */}
+              {CTA.buttonText}
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

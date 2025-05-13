@@ -7,16 +7,23 @@ export function Examples() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   
-  const handlePlayAudio = () => {
+  const handlePlayAudio = async () => {
     if (!audioRef.current) return;
     
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
+    try {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        // Using await with a try/catch to properly handle interruptions
+        await audioRef.current.play();
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      // Handle aborted play requests gracefully
+      console.log("Audio playback interrupted:", error);
+      setIsPlaying(false);
     }
-    
-    setIsPlaying(!isPlaying);
   };
   
   return (
