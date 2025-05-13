@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, ExternalLink, ThumbsUp } from "lucide-react";
+import { Loader2, Search, ExternalLink, ThumbsUp, AlertTriangle } from "lucide-react";
+
+// Import UI system components
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui-system/Card";
+import { Button } from "@/components/ui-system/Button";
+import { AppLayout } from "@/components/ui-system/AppLayout";
 import { apiRequest } from "@/lib/queryClient";
 
 interface Citation {
@@ -48,22 +51,26 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="container max-w-4xl py-8">
-      <Card className="card-gradient shadow-lg">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl">AI Web Search</CardTitle>
-              <CardDescription>
-                Search the web using Perplexity's advanced Pro model for more comprehensive and accurate results
-              </CardDescription>
+    <AppLayout>
+      <div className="container max-w-4xl mx-auto">
+        <Card gradient elevated>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Search className="h-5 w-5 text-[#0A84FF]" />
+                  AI Web Search
+                </CardTitle>
+                <CardDescription>
+                  Search the web using Perplexity's advanced Pro model for more comprehensive and accurate results
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="bg-[#0A84FF]/10 text-[#0A84FF] font-medium">
+                Perplexity Sonar Pro
+              </Badge>
             </div>
-            <Badge variant="outline" className="bg-primary/10 text-primary font-medium">
-              Perplexity Sonar Pro
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </CardHeader>
+          <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <Textarea
               value={query}
@@ -177,5 +184,6 @@ export default function SearchPage() {
         </CardContent>
       </Card>
     </div>
+    </AppLayout>
   );
 }
