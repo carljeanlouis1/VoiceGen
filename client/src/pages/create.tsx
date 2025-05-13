@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+
+// Import UI system components
+import { Button } from "@/components/ui-system/Button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui-system/Card";
+import { AppLayout } from "@/components/ui-system/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
@@ -1128,11 +1131,12 @@ export default function CreatePage() {
   }, []);
 
   return (
-    <div className="container mx-auto py-6 space-y-6 max-w-6xl">
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold">Content Creator</h1>
-        <p className="text-muted-foreground">Create AI-generated content for your projects</p>
-      </div>
+    <AppLayout>
+      <div className="container mx-auto space-y-6 max-w-6xl">
+        <div className="flex flex-col space-y-2">
+          <h1 className="text-3xl font-bold text-white">Content Creator</h1>
+          <p className="text-zinc-400">Create AI-generated content for your projects</p>
+        </div>
       
       {/* Mode Selection */}
       <Card>
@@ -2192,5 +2196,6 @@ export default function CreatePage() {
         </div>
       )}
     </div>
+    </AppLayout>
   );
 }
