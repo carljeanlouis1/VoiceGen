@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Loader2, Send, MessageSquare, Bot, FileText, Brain, Sparkles, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -186,9 +188,10 @@ export default function Chat() {
   };
 
   return (
-    <div className="container max-w-4xl py-8">
-      <Card className="card-gradient shadow-lg">
-        <CardHeader>
+    <AppLayout>
+      <div className="container max-w-4xl mx-auto">
+        <Card gradient elevated>
+          <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               {isPodcastMode && podcastTitle ? (
@@ -329,7 +332,7 @@ export default function Chat() {
             <div className="font-medium text-sm">Choose AI Model:</div>
             <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  variant={modelType === "claude" ? "default" : "outline"}
+                  variant={modelType === "claude" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => handleModelChange("claude")}
                   className="flex items-center gap-1"
@@ -338,7 +341,7 @@ export default function Chat() {
                   <span>Claude Sonnet</span>
                 </Button>
                 <Button
-                  variant={modelType === "gpt" ? "default" : "outline"}
+                  variant={modelType === "gpt" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => handleModelChange("gpt")}
                   className="flex items-center gap-1"
@@ -347,7 +350,7 @@ export default function Chat() {
                   <span>GPT-4o</span>
                 </Button>
                 <Button
-                  variant={modelType === "gemini" ? "default" : "outline"}
+                  variant={modelType === "gemini" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => handleModelChange("gemini")}
                   className="flex items-center gap-1"
@@ -407,9 +410,9 @@ export default function Chat() {
               </ScrollArea>
 
               <form onSubmit={handleSubmit} className="flex gap-2">
-                <Input
+                <InputField
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
                   placeholder={
                     isPodcastMode
                       ? "Ask questions about the podcast..."
@@ -430,7 +433,8 @@ export default function Chat() {
             </>
           )}
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </AppLayout>
   );
 }

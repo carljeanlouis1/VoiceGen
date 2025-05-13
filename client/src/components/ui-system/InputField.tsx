@@ -31,7 +31,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(
     ref
   ) => {
     // Generate id if not provided
-    const inputId = id || label ? label.toLowerCase().replace(/\s+/g, '-') : undefined;
+    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     
     return (
       <div className={`space-y-2 ${fullWidth ? 'w-full' : ''}`}>
