@@ -432,8 +432,11 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
 
           <Button
             type="submit"
+            variant="primary"
+            size="lg"
             className="w-full"
             disabled={mutation.isPending}
+            isLoading={mutation.isPending}
           >
             {mutation.isPending ? "Converting..." : "Convert to Speech"}
           </Button>
@@ -442,10 +445,10 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
 
       {/* Background processing status */}
       {processingJob && processingJob.status === 'processing' && (
-        <Card className="my-6">
+        <Card elevated gradient className="my-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-[#0A84FF]" />
               Processing Long Text
             </CardTitle>
             <CardDescription>
@@ -463,8 +466,8 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
             <Progress value={processingJob.progress} className="w-full h-3" />
             
             {/* Visual progress indicator showing chunks */}
-            <div className="mt-4 border rounded-md p-3 bg-muted/20">
-              <div className="text-xs mb-2 text-muted-foreground">Processing steps:</div>
+            <div className="mt-4 border border-zinc-800 rounded-xl p-4 bg-zinc-900/50 backdrop-blur-sm">
+              <div className="text-xs mb-3 text-zinc-400">Processing steps:</div>
               <div className="flex gap-1 flex-wrap">
                 {Array.from({ length: 10 }).map((_, i) => {
                   const chunkProgress = i * 10;
@@ -474,12 +477,12 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                   return (
                     <div 
                       key={i}
-                      className={`h-2 flex-1 rounded-sm ${
+                      className={`h-2 flex-1 rounded-full ${
                         isActive 
                           ? isProcessing 
-                            ? 'bg-primary animate-pulse' 
-                            : 'bg-primary'
-                          : 'bg-muted'
+                            ? 'bg-gradient-to-r from-[#0A84FF] to-[#30D158] animate-pulse' 
+                            : 'bg-gradient-to-r from-[#0A84FF] to-[#30D158]'
+                          : 'bg-zinc-800'
                       }`}
                       title={`${chunkProgress}-${chunkProgress + 10}%`}
                     />
@@ -487,7 +490,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                 })}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mt-4">
+            <p className="text-sm text-zinc-400 mt-4">
               Please wait while we process your text. This may take several minutes for very long content.
               You'll be able to access the audio in your library when it's ready.
             </p>
@@ -497,23 +500,35 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
       
       {/* Completed audio - show from both immediate and background processes */}
       {(mutation.data || completedAudio) && (
-        <div className="space-y-6 rounded-lg border p-6">
-          <h2 className="text-lg font-semibold">Generated Audio</h2>
-          <AudioPlayer
-            src={(mutation.data || completedAudio)?.audioUrl}
-            title={(mutation.data || completedAudio)?.title}
-          />
-          {(mutation.data?.artworkUrl || completedAudio?.artworkUrl) && (
-            <div>
-              <h3 className="text-md font-medium mb-2">AI-Generated Artwork</h3>
-              <img
-                src={(mutation.data?.artworkUrl || completedAudio?.artworkUrl)}
-                alt="Generated artwork"
-                className="rounded-lg w-full max-w-md mx-auto"
-              />
-            </div>
-          )}
-        </div>
+        <Card gradient elevated className="mt-10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MusicIcon className="h-5 w-5 text-[#0A84FF]" />
+              Generated Audio
+            </CardTitle>
+            <CardDescription>
+              Your text has been successfully converted to speech
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <AudioPlayer
+              src={(mutation.data || completedAudio)?.audioUrl}
+              title={(mutation.data || completedAudio)?.title}
+            />
+            {(mutation.data?.artworkUrl || completedAudio?.artworkUrl) && (
+              <div className="mt-6">
+                <h3 className="text-lg font-medium mb-3 text-white">AI-Generated Artwork</h3>
+                <div className="relative rounded-xl overflow-hidden border border-zinc-700">
+                  <img
+                    src={(mutation.data?.artworkUrl || completedAudio?.artworkUrl)}
+                    alt="Generated artwork"
+                    className="w-full max-w-md mx-auto"
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
