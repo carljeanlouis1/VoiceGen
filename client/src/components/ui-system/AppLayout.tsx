@@ -64,7 +64,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Logo */}
             <Link href="/">
               <div className="flex items-center space-x-2 cursor-pointer">
-                <span className={`text-xl font-medium bg-gradient-to-r from-[${COLORS.primary}] to-[${COLORS.secondary}] bg-clip-text text-transparent`}>
+                <span className="text-xl font-medium bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] bg-clip-text text-transparent">
                   VoiceGen
                 </span>
               </div>
@@ -82,7 +82,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <div 
                       className={`flex items-center space-x-1 px-3 py-2 rounded-full transition-colors cursor-pointer ${
                         isActive 
-                          ? `text-white bg-[${COLORS.backgroundTertiary}]` 
+                          ? 'text-white bg-zinc-800/70' 
                           : 'text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -144,7 +144,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <div
                     className={`flex items-center space-x-4 p-4 rounded-xl transition-colors cursor-pointer ${
                       isActive 
-                        ? `bg-[${COLORS.backgroundTertiary}] text-white` 
+                        ? 'bg-zinc-800/70 text-white' 
                         : 'text-zinc-400 hover:text-white'
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
@@ -171,7 +171,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="mb-4 md:mb-0">
               <Link href="/">
                 <div className="cursor-pointer">
-                  <span className={`text-lg font-medium bg-gradient-to-r from-[${COLORS.primary}] to-[${COLORS.secondary}] bg-clip-text text-transparent`}>
+                  <span className="text-lg font-medium bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] bg-clip-text text-transparent">
                     VoiceGen
                   </span>
                 </div>
