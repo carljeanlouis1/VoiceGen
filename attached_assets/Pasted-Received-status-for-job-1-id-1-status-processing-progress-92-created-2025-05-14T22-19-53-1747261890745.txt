@@ -1,0 +1,61 @@
+Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 92, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'processing', progress: 100, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:19:53.466Z', …}
+index-DJefaBHX.js:336 Progress updated: 92% -> 100%
+index-DJefaBHX.js:336 Checking status for job 1...
+index-DJefaBHX.js:336 Received status for job 1: {id: 1, status: 'complete', progress: 100, created: '2025-05-14T22:19:53.466Z', updated: '2025-05-14T22:25:59.698Z', …}
+index-DJefaBHX.js:336 Job 1 completed successfully!
+index-DJefaBHX.js:336 Clearing interval for completed job 1
+index-DJefaBHX.js:336 Audio URL received for job 1, updating UI
+index-DJefaBHX.js:336 Setting completed audio: {id: 1, title: 'AI Weapons of Innovation', audioUrl: '/api/audio/ec8cf7ac6933532f.mp3', text: '[MUSIC]\n\n*A faint, pulsing electronic score builds… humanity determines purpose.\n\n[MUSIC FADES OUT]\n', voice: 'echo', …}
+ec8cf7ac6933532f.mp3:1 
+            
+            
+           GET https://voicegen.replit.app/api/audio/ec8cf7ac6933532f.mp3 500 (Internal Server Error)Understand this errorAI
+index-DJefaBHX.js:288 Initial play blocked, will wait for user interaction
+index-DJefaBHX.js:288 
+            
+            
+           HEAD https://voicegen.replit.app/api/audio/ec8cf7ac6933532f.mp3 net::ERR_ABORTED 404 (Not Found)
+x @ index-DJefaBHX.js:288
+(anonymous) @ index-DJefaBHX.js:288
+setTimeout
+(anonymous) @ index-DJefaBHX.js:288
+md @ index-DJefaBHX.js:40
+ii @ index-DJefaBHX.js:40
+Zv @ index-DJefaBHX.js:40
+$s @ index-DJefaBHX.js:38
+dR @ index-DJefaBHX.js:40
+Qs @ index-DJefaBHX.js:40
+cN @ index-DJefaBHX.js:40
+N @ index-DJefaBHX.js:25
+O @ index-DJefaBHX.js:25Understand this errorAI
+index-DJefaBHX.js:288 Uncaught (in promise) NotSupportedError: The element has no supported sources.
