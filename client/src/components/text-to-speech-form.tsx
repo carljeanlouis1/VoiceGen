@@ -467,7 +467,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
             
             {/* Visual progress indicator showing chunks */}
             <div className="mt-4 border border-zinc-800 rounded-xl p-4 bg-zinc-900/50 backdrop-blur-sm">
-              <div className="text-xs mb-3 text-zinc-400">Processing steps:</div>
+              <div className="text-xs mb-3 text-zinc-300">Processing steps:</div>
               <div className="flex gap-1 flex-wrap">
                 {Array.from({ length: 10 }).map((_, i) => {
                   const chunkProgress = i * 10;
@@ -490,7 +490,7 @@ export function TextToSpeechForm({ onSuccess }: TextToSpeechFormProps) {
                 })}
               </div>
             </div>
-            <p className="text-sm text-zinc-400 mt-4">
+            <p className="text-sm text-zinc-300 mt-4">
               Please wait while we process your text. This may take several minutes for very long content.
               You'll be able to access the audio in your library when it's ready.
             </p>

@@ -176,7 +176,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </span>
                 </div>
               </Link>
-              <p className="text-sm text-zinc-500 mt-2">
+              <p className="text-sm text-zinc-400 mt-2">
                 © {new Date().getFullYear()} VoiceGen
               </p>
             </div>

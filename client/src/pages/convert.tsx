@@ -12,7 +12,7 @@ export default function Convert() {
           <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-[#0A84FF] to-[#30D158] bg-clip-text text-transparent">
             Convert Text to Speech
           </h1>
-          <p className="text-zinc-400 max-w-2xl">
+          <p className="text-zinc-300 max-w-2xl">
             Transform your text into natural-sounding speech with our advanced AI voice technology
           </p>
         </header>
