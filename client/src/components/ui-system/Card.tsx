@@ -96,7 +96,7 @@ interface CardDescriptionProps {
 
 export function CardDescription({ children, className = '' }: CardDescriptionProps) {
   return (
-    <p className={`text-sm text-zinc-400 ${className}`}>
+    <p className={`text-sm text-zinc-300 ${className}`}>
       {children}
     </p>
   );

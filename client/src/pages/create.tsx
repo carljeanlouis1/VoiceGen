@@ -1151,7 +1151,7 @@ export default function CreatePage() {
               <Pencil className="h-6 w-6" />
               <div className="flex flex-col items-start">
                 <span className="text-lg font-medium">Content Creation</span>
-                <span className="text-xs text-muted-foreground">Create articles, stories, and marketing content</span>
+                <span className="text-xs text-zinc-300">Create articles, stories, and marketing content</span>
               </div>
             </Button>
             

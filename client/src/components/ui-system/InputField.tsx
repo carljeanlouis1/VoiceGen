@@ -76,7 +76,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(
         {(helperText || error) && (
           <p 
             className={`text-xs ${
-              error ? 'text-[#FF453A]' : 'text-zinc-500'
+              error ? 'text-[#FF453A]' : 'text-zinc-400'
             }`}
           >
             {error || helperText}

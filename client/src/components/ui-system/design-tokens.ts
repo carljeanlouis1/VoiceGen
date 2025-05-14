@@ -21,9 +21,9 @@ export const COLORS = {
   
   // Text colors
   textPrimary: '#FFFFFF',
-  textSecondary: 'rgba(255, 255, 255, 0.8)',
-  textTertiary: 'rgba(255, 255, 255, 0.6)',
-  textMuted: 'rgba(255, 255, 255, 0.4)',
+  textSecondary: 'rgba(255, 255, 255, 0.9)',  // Increased from 0.8 for better contrast
+  textTertiary: 'rgba(255, 255, 255, 0.8)',   // Increased from 0.6 for better contrast
+  textMuted: 'rgba(255, 255, 255, 0.6)',      // Increased from 0.4 for better contrast
   
   // States
   success: '#30D158',
