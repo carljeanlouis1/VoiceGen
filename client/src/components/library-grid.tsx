@@ -69,7 +69,7 @@ export function LibraryGrid() {
         <CardContent className="p-12 text-center">
           <Music className="h-12 w-12 mx-auto mb-4 text-zinc-600" />
           <h3 className="text-xl font-medium text-white mb-2">Your Library is Empty</h3>
-          <p className="text-zinc-400 max-w-md mx-auto">
+          <p className="text-zinc-300 max-w-md mx-auto">
             Create content using the Convert or Create pages to see your audio files here.
           </p>
         </CardContent>
@@ -124,7 +124,7 @@ export function LibraryGrid() {
           </CardContent>
           {file.summary && (
             <CardFooter>
-              <p className="text-sm text-zinc-400">{file.summary}</p>
+              <p className="text-sm text-zinc-300">{file.summary}</p>
             </CardFooter>
           )}
         </Card>

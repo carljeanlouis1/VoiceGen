@@ -184,7 +184,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="flex space-x-6">
               {navItems.map((item) => (
                 <Link key={item.name} href={item.href}>
-                  <div className="text-sm text-zinc-500 hover:text-white transition-colors cursor-pointer">
+                  <div className="text-sm text-zinc-400 hover:text-white transition-colors cursor-pointer">
                     {item.name}
                   </div>
                 </Link>

@@ -1144,7 +1144,7 @@ export default function CreatePage() {
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Button 
               onClick={() => setCreateMode("content")}
-              variant={createMode === "content" ? "default" : "outline"}
+              variant={createMode === "content" ? "primary" : "outline"}
               className="flex items-center gap-2 py-8 px-4 h-auto"
               size="lg"
             >
@@ -1157,7 +1157,7 @@ export default function CreatePage() {
             
             <Button 
               onClick={() => setCreateMode("podcast")}
-              variant={createMode === "podcast" ? "default" : "outline"}
+              variant={createMode === "podcast" ? "primary" : "outline"}
               className="flex items-center gap-2 py-8 px-4 h-auto"
               size="lg"
             >
