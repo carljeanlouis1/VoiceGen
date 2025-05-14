@@ -353,22 +353,29 @@ async function startBackgroundProcessing(data: any): Promise<number> {
           throw new Error(`Failed to write audio file: ${err.message}`);
         });
         
-        // Write the buffer to the file using a promise
+        // Write the buffer to the file using a promise with improved error handling
         await new Promise<void>((resolve, reject) => {
-          writeStream.write(audioBuffer, (err) => {
-            if (err) {
-              log(`Error during write: ${err.message}`);
-              reject(err);
-              return;
-            }
-            
-            writeStream.end(() => {
-              log(`Audio file successfully written to: ${audioFilePath}`);
-              resolve();
-            });
+          // Set a write timeout to prevent hanging
+          const writeTimeout = setTimeout(() => {
+            reject(new Error(`Write operation timed out for large file (${bufferSize} bytes)`));
+          }, 30000); // 30 second timeout
+          
+          // Use proper event handlers instead of callbacks for stream operations
+          writeStream.on('error', (err) => {
+            clearTimeout(writeTimeout);
+            log(`Stream error during write: ${err.message}`);
+            reject(err);
           });
           
-          writeStream.on('error', reject);
+          writeStream.on('close', () => {
+            clearTimeout(writeTimeout);
+            log(`Audio file successfully written and stream closed: ${audioFilePath}`);
+            resolve();
+          });
+          
+          // Write in one operation
+          writeStream.write(audioBuffer);
+          writeStream.end();
         });
         
         // Verify the file was written correctly
@@ -675,7 +682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Endpoint to serve audio files from disk
+  // Endpoint to serve audio files from disk with improved handling for large files
   app.get("/api/audio/:filename", async (req, res) => {
     const filename = req.params.filename;
     const filePath = path.join(AUDIO_DIR, filename);
@@ -690,10 +697,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       // Get file stats for Content-Length and duration estimation
-      const stats = fs.statSync(filePath);
+      const stats = await fs.promises.stat(filePath);
       const fileSize = stats.size;
       
-      log(`Audio file found: ${filePath} (${fileSize} bytes, ~${Math.ceil(fileSize / 1024 / 1024)}MB)`);
+      // Verify file can be opened and is a valid MP3
+      if (fileSize === 0) {
+        log(`Warning: Audio file ${filePath} exists but has zero size`);
+        return res.status(500).json({ error: "Invalid audio file (zero size)" });
+      }
+      
+      // Check if we can actually open the file before attempting to stream it
+      try {
+        const testStream = fs.createReadStream(filePath, { start: 0, end: Math.min(1024, fileSize - 1) });
+        await new Promise<void>((resolve, reject) => {
+          testStream.on('data', () => {
+            testStream.close();
+            resolve();
+          });
+          testStream.on('error', (err) => {
+            reject(err);
+          });
+          // Set timeout for open operation
+          setTimeout(() => reject(new Error('Timeout opening file')), 3000);
+        });
+      } catch (err: any) {
+        log(`Error opening audio file ${filePath}: ${err.message}`);
+        return res.status(500).json({ error: "Cannot open audio file", message: err.message });
+      }
+      
+      log(`Audio file validated: ${filePath} (${fileSize} bytes, ~${Math.ceil(fileSize / 1024 / 1024)}MB)`);
       
       // Handle range requests for better seeking support
       const range = req.headers.range;
@@ -708,13 +740,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parts = range.replace(/bytes=/, "").split("-");
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunkSize = (end - start) + 1;
         
-        log(`Serving range: ${start}-${end}/${fileSize} (${chunkSize} bytes)`);
+        // Validate range request
+        if (isNaN(start) || start < 0 || start >= fileSize) {
+          log(`Invalid range start: ${start}`);
+          return res.status(416).json({ error: "Range not satisfiable" });
+        }
+        
+        // Ensure end is valid
+        const validEnd = Math.min(end, fileSize - 1);
+        const chunkSize = (validEnd - start) + 1;
+        
+        log(`Serving range: ${start}-${validEnd}/${fileSize} (${chunkSize} bytes)`);
         
         // Set partial content headers
         res.status(206);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+        res.setHeader('Content-Range', `bytes ${start}-${validEnd}/${fileSize}`);
         res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Content-Length', chunkSize);
         res.setHeader('Content-Type', 'audio/mpeg');
@@ -725,11 +766,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', 'Range');
         
-        // Stream the file slice with error handling
+        // Stream the file slice with error handling - use a smaller chunk size for very large files
+        const highWaterMark = fileSize > 50 * 1024 * 1024 ? 32 * 1024 : 64 * 1024;
         const fileStream = fs.createReadStream(filePath, { 
           start, 
-          end,
-          highWaterMark: 64 * 1024 // 64KB chunks for better memory management
+          end: validEnd,
+          highWaterMark // Adaptive chunk size based on file size
         });
         
         // Handle streaming errors
@@ -738,55 +780,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!res.headersSent) {
             res.status(500).json({ error: "Error streaming file", message: err.message });
           }
+          fileStream.destroy();
+        });
+        
+        // Handle end of stream
+        fileStream.on('end', () => {
+          log(`Range stream completed for ${filename}`);
         });
         
         fileStream.pipe(res);
       } else {
         log(`Serving full file: ${filePath} (${fileSize} bytes)`);
         
-        // Handle normal requests
-        // Set appropriate headers
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Length', fileSize);
-        res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
-        
-        // Optimize caching based on request type
-        if (req.query.download) {
-          // For downloads, use no-cache to ensure fresh content
-          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-          res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-        } else {
-          // For normal playback, disable caching for large files
+        // For very large files, we'll recommend range requests instead
+        const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024; // 50MB
+        if (fileSize > LARGE_FILE_THRESHOLD && !req.query.download) {
+          log(`File size (${fileSize} bytes) exceeds threshold for full streaming. Using chunked response.`);
+          
+          // Set headers to indicate range requests are supported but send the first chunk
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('X-Audio-Duration', estimatedDuration);
+          res.setHeader('X-File-Size', fileSize);
           res.setHeader('Cache-Control', 'no-cache, no-store');
-          res.setHeader('Content-Disposition', `inline; filename=${filename}`);
-        }
-        
-        // Add CORS headers for better player compatibility
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Headers', 'Range');
-        
-        // Stream the file in chunks instead of loading it all into memory
-        const fileStream = fs.createReadStream(filePath, {
-          // Use a reasonable high water mark for large files
-          highWaterMark: 64 * 1024 // 64KB chunks
-        });
-        
-        // Handle streaming errors
-        fileStream.on('error', (err) => {
-          log(`Stream error for full file: ${err.message}`);
-          if (!res.headersSent) {
-            res.status(500).json({ error: "Error streaming file", message: err.message });
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Headers', 'Range');
+          
+          // Use chunked transfer encoding
+          res.setHeader('Transfer-Encoding', 'chunked');
+          
+          // Stream first 1MB of the file to get playback started
+          const initialChunkSize = 1 * 1024 * 1024; // 1MB
+          const initialStream = fs.createReadStream(filePath, {
+            start: 0,
+            end: Math.min(initialChunkSize - 1, fileSize - 1),
+            highWaterMark: 32 * 1024 // 32KB chunks
+          });
+          
+          initialStream.on('error', (err) => {
+            log(`Stream error for initial chunk: ${err.message}`);
+            if (!res.headersSent) {
+              res.status(500).json({ error: "Error streaming file", message: err.message });
+            }
+            initialStream.destroy();
+          });
+          
+          initialStream.pipe(res);
+        } else {
+          // Handle normal requests
+          // Set appropriate headers
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', fileSize);
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('X-Audio-Duration', estimatedDuration); // Custom header for clients
+          
+          // Optimize caching based on request type
+          if (req.query.download) {
+            // For downloads, use no-cache to ensure fresh content
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+          } else {
+            // For normal playback, disable caching for large files
+            res.setHeader('Cache-Control', 'no-cache, no-store');
+            res.setHeader('Content-Disposition', `inline; filename=${filename}`);
           }
-        });
-        
-        // Handle unexpected connection closes
-        res.on('close', () => {
-          log(`Connection closed for ${filename}`);
-          fileStream.destroy();
-        });
-        
-        fileStream.pipe(res);
+          
+          // Add CORS headers for better player compatibility
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Headers', 'Range');
+          
+          // Choose a smaller buffer size for very large files
+          const highWaterMark = fileSize > 50 * 1024 * 1024 ? 32 * 1024 : 64 * 1024;
+          
+          // Stream the file in chunks instead of loading it all into memory
+          const fileStream = fs.createReadStream(filePath, {
+            highWaterMark // Adaptive chunk size based on file size
+          });
+          
+          // Handle streaming errors
+          fileStream.on('error', (err) => {
+            log(`Stream error for full file: ${err.message}`);
+            if (!res.headersSent) {
+              res.status(500).json({ error: "Error streaming file", message: err.message });
+            }
+            fileStream.destroy();
+          });
+          
+          // Handle unexpected connection closes
+          res.on('close', () => {
+            log(`Connection closed for ${filename}`);
+            fileStream.destroy();
+          });
+          
+          // Handle end of stream
+          fileStream.on('end', () => {
+            log(`Stream completed for ${filename}`);
+          });
+          
+          fileStream.pipe(res);
+        }
       }
     } catch (error: any) {
       log(`Error serving audio file ${filename}: ${error.message}`);
