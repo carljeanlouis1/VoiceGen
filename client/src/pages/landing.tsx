@@ -116,7 +116,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 bg-white dark:bg-gray-950">
+      <section id="features" className="py-24 bg-background text-foreground">
         <div className="container px-4 md:px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Advanced AI Capabilities</h2>
