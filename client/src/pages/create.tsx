@@ -1135,7 +1135,7 @@ export default function CreatePage() {
       <div className="container mx-auto space-y-6 max-w-6xl">
         <div className="flex flex-col space-y-2">
           <h1 className="text-3xl font-bold text-white">Content Creator</h1>
-          <p className="text-zinc-400">Create AI-generated content for your projects</p>
+          <p className="text-zinc-300">Create AI-generated content for your projects</p>
         </div>
       
       {/* Mode Selection */}
@@ -1164,7 +1164,7 @@ export default function CreatePage() {
               <Headphones className="h-6 w-6" />
               <div className="flex flex-col items-start">
                 <span className="text-lg font-medium">Podcast Creation</span>
-                <span className="text-xs text-muted-foreground">Create research-backed audio content</span>
+                <span className="text-xs text-zinc-300">Create research-backed audio content</span>
               </div>
             </Button>
           </div>

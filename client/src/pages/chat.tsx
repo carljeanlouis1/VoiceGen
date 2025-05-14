@@ -286,7 +286,7 @@ export default function Chat() {
                   <div className="p-3 border-b bg-muted/50">
                     <div className="font-medium">Content Summary</div>
                   </div>
-                  <div className="p-3 text-sm text-muted-foreground max-h-[100px] overflow-auto">
+                  <div className="p-3 text-sm text-zinc-300 max-h-[100px] overflow-auto">
                     {selectedFile.summary || (
                       <>
                         <span>Analyzing: </span>
@@ -302,7 +302,7 @@ export default function Chat() {
             {/* General chat mode content */}
             <TabsContent value="chat">
               <div className="rounded-md border bg-card p-4 mt-2">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-zinc-300">
                   Ask any question or discuss any topic with the AI. In this mode, the AI responds based on its general knowledge without analyzing specific content.
                 </p>
               </div>
@@ -318,7 +318,7 @@ export default function Chat() {
                     </div>
                     <div>
                       <h3 className="font-medium mb-1">Podcast: {podcastTitle}</h3>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-zinc-300">
                         Ask questions about the podcast content, request summaries, or discuss specific parts of the podcast. The AI has access to the full podcast script and can help you understand or analyze it.
                       </p>
                     </div>
@@ -370,7 +370,7 @@ export default function Chat() {
                 ref={scrollAreaRef as any}
               >
                 {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-300">
                     <MessageSquare className="h-12 w-12 mb-4 opacity-50" />
                     <h3 className="font-semibold mb-2">
                       {useContext 
