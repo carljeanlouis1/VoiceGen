@@ -4,7 +4,8 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { storage } from "./storage";
-import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES, contentResearchSchema, podcastScriptSchema } from "@shared/schema";
+import { textToSpeechSchema, MAX_CHUNK_SIZE, AVAILABLE_VOICES, contentResearchSchema } from "@shared/schema";
+// Import podcastScriptSchema further down in the file where it's needed to avoid conflicts
 import { z } from "zod";
 import { log } from "./vite";
 import fetch from "node-fetch";
@@ -340,17 +341,30 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         const bufferSize = audioBuffer.length;
         log(`Writing audio buffer (${bufferSize} bytes, ~${Math.ceil(bufferSize/1024/1024)}MB) to file: ${audioFilePath}`);
         
-        // Create a write stream with sensible options for large files
+        // Ensure audio directory exists (in case it was deleted)
+        if (!fs.existsSync(AUDIO_DIR)) {
+          log(`Audio directory does not exist, creating: ${AUDIO_DIR}`);
+          fs.mkdirSync(AUDIO_DIR, { recursive: true });
+        }
+        
+        // Create a write stream with improved options for large files
         const writeStream = fs.createWriteStream(audioFilePath, {
           flags: 'w',
           encoding: 'binary',
-          highWaterMark: 1024 * 1024 // 1MB chunks for writing
+          highWaterMark: 512 * 1024 // 512KB chunks for writing (more memory efficient)
         });
         
         // Set up event handlers for the write stream
         writeStream.on('error', (err) => {
           log(`Error writing audio file: ${err.message}`);
-          throw new Error(`Failed to write audio file: ${err.message}`);
+          // Don't throw immediately as this might be handled by the promise
+          if (writeStream.writable) {
+            try {
+              writeStream.end(); // Try to end the stream properly
+            } catch (closeErr) {
+              log(`Error closing stream after error: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+            }
+          }
         });
         
         // Write the buffer to the file using a promise with improved error handling
@@ -378,13 +392,77 @@ async function startBackgroundProcessing(data: any): Promise<number> {
           writeStream.end();
         });
         
-        // Verify the file was written correctly
-        if (!fs.existsSync(audioFilePath)) {
-          throw new Error(`File was not created: ${audioFilePath}`);
+        // Verify the file was written correctly with retries for large files
+        let fileExists = false;
+        let fileStats: fs.Stats | null = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        // Retry loop for large file verification
+        while (retryCount < maxRetries) {
+          try {
+            if (!fs.existsSync(audioFilePath)) {
+              log(`File not found on attempt ${retryCount + 1}, retrying...`);
+              // Small delay before retry
+              await new Promise(r => setTimeout(r, 500));
+              retryCount++;
+              continue;
+            }
+            
+            // Get file stats to verify size
+            fileStats = fs.statSync(audioFilePath);
+            
+            // Verify file size - should be approximately the same as buffer size
+            if (fileStats.size < 1000) { // File is too small, likely corrupted
+              log(`Warning: File size is suspiciously small (${fileStats.size} bytes), retrying...`);
+              // Try to fix by waiting a bit longer
+              await new Promise(r => setTimeout(r, 1000));
+              retryCount++;
+              continue;
+            }
+            
+            // File exists and has reasonable size
+            fileExists = true;
+            break;
+          } catch (err) {
+            log(`Error verifying file (attempt ${retryCount + 1}): ${err instanceof Error ? err.message : String(err)}`);
+            retryCount++;
+            // Wait before retry
+            await new Promise(r => setTimeout(r, 500));
+          }
         }
         
-        const stats = fs.statSync(audioFilePath);
-        log(`File ${audioFilePath} written successfully: ${stats.size} bytes`);
+        if (!fileExists || !fileStats) {
+          throw new Error(`File verification failed after ${maxRetries} attempts: ${audioFilePath}`);
+        }
+        
+        log(`File ${audioFilePath} written successfully: ${fileStats.size} bytes`);
+        
+        // Double-check file readability with a test read
+        try {
+          const testReadStream = fs.createReadStream(audioFilePath, { start: 0, end: 1024 });
+          await new Promise<void>((resolve, reject) => {
+            let dataReceived = false;
+            testReadStream.on('data', () => {
+              dataReceived = true;
+              testReadStream.close();
+            });
+            testReadStream.on('end', () => {
+              if (dataReceived) {
+                resolve();
+              } else {
+                reject(new Error('No data read from file'));
+              }
+            });
+            testReadStream.on('error', reject);
+            // Set timeout for read test
+            setTimeout(() => reject(new Error('Timeout reading test data')), 2000);
+          });
+          log(`File verified as readable: ${audioFilePath}`);
+        } catch (err) {
+          log(`Error verifying file readability: ${err instanceof Error ? err.message : String(err)}`);
+          throw new Error(`File not readable: ${audioFilePath}`);
+        }
         
         // Save to storage with improved duration calculation
         const audioFile = await storage.createAudioFile({
@@ -890,6 +968,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add HEAD method support for audio files (for improved browser compatibility)
+  app.head("/api/audio/:filename", async (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(AUDIO_DIR, filename);
+    
+    log(`HEAD request for audio file: ${filename} (path: ${filePath})`);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      log(`Audio file not found for HEAD request: ${filePath}`);
+      return res.status(404).send();
+    }
+    
+    try {
+      // Get file stats for Content-Length
+      const stats = await fs.promises.stat(filePath);
+      const fileSize = stats.size;
+      
+      log(`Found audio file for HEAD: ${filePath} (${fileSize} bytes)`);
+      
+      // Set basic headers that browsers need
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', fileSize);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Headers', 'Range');
+      
+      // For HEAD requests, we don't send body content
+      res.status(200).send();
+    } catch (error: any) {
+      log(`Error in HEAD request for ${filename}: ${error.message}`);
+      res.status(500).send();
+    }
+  });
+  
   // Endpoint to check job status (legacy endpoint for backwards compatibility)
   app.get("/api/text-to-speech/status/:jobId", (req, res) => {
     const jobId = parseInt(req.params.jobId);
