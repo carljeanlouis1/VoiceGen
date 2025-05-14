@@ -1369,7 +1369,7 @@ export default function CreatePage() {
                                   className="w-full h-auto rounded-md object-cover"
                                 />
                                 <Button
-                                  variant="destructive"
+                                  variant="danger"
                                   size="icon"
                                   className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
                                   onClick={() => removeImage(index)}
@@ -1451,7 +1451,7 @@ export default function CreatePage() {
                     </Button>
                     <div className="flex gap-2">
                       <Button
-                        variant={showContentChat ? "default" : "outline"}
+                        variant={showContentChat ? "primary" : "outline"}
                         onClick={toggleContentChat}
                       >
                         <MessageSquare className="mr-2 h-4 w-4" />
@@ -1951,7 +1951,7 @@ export default function CreatePage() {
                   </Button>
                   
                   <Button 
-                    variant={showContentChat ? "default" : "outline"}
+                    variant={showContentChat ? "primary" : "outline"}
                     className="ml-2"
                     type="button"
                     onClick={(e) => {
