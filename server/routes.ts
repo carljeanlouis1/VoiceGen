@@ -79,6 +79,19 @@ type ProcessingJob = TTSProcessingJob | PodcastProcessingJob;
 // Holds in-memory processing state for each job
 const processingJobs = new Map<number, ProcessingJob>();
 
+// Clean up old jobs to prevent memory leaks
+setInterval(() => {
+  const now = new Date();
+  for (const [jobId, job] of processingJobs.entries()) {
+    const jobAge = now.getTime() - job.created.getTime();
+    // Remove jobs older than 1 hour
+    if (jobAge > 60 * 60 * 1000) {
+      processingJobs.delete(jobId);
+      log(`Cleaned up old job ${jobId}`);
+    }
+  }
+}, 10 * 60 * 1000); // Run cleanup every 10 minutes
+
 // Generate unique job IDs
 let nextJobId = 1;
 
@@ -326,9 +339,16 @@ async function startBackgroundProcessing(data: any): Promise<number> {
       let artworkUrl: string | undefined;
 
       if (data.generateArtwork) {
-        log(`Job #${jobId}: Generating summary and artwork`);
-        summary = await summarizeText(data.text);
-        artworkUrl = await generateArtwork(summary || "");
+        try {
+          log(`Job #${jobId}: Generating summary and artwork`);
+          summary = await summarizeText(data.text);
+          artworkUrl = await generateArtwork(summary || "");
+          log(`Job #${jobId}: Artwork generation completed`);
+        } catch (artworkError) {
+          log(`Job #${jobId}: Artwork generation failed: ${artworkError instanceof Error ? artworkError.message : String(artworkError)}`);
+          // Continue without artwork instead of failing the entire job
+          artworkUrl = undefined;
+        }
       }
       
       // Process audio chunks with progress tracking
