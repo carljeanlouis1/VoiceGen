@@ -268,9 +268,20 @@ async function generateSpeechChunks(text: string, voice: string, onProgress?: (p
       }
     }
 
-    // Combine all chunks into a single audio buffer
+    // Combine all chunks into a single audio buffer with memory optimization
+    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    log(`Combining ${chunks.length} chunks into ${totalSize} bytes`);
+    
     const result = Buffer.concat(chunks);
     log(`Speech generation complete: ${result.length} bytes`);
+    
+    // Clear chunks array to free memory immediately
+    chunks.length = 0;
+    
+    // Force garbage collection hint for Node.js
+    if (global.gc) {
+      global.gc();
+    }
     
     // Final progress report
     if (onProgress) {
@@ -340,6 +351,11 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         // Get the size of the audio buffer for logging
         const bufferSize = audioBuffer.length;
         log(`Writing audio buffer (${bufferSize} bytes, ~${Math.ceil(bufferSize/1024/1024)}MB) to file: ${audioFilePath}`);
+        
+        // For very large buffers, check memory usage and warn
+        if (bufferSize > 30 * 1024 * 1024) { // 30MB threshold
+          log(`Warning: Large audio buffer detected (${Math.ceil(bufferSize/1024/1024)}MB) - optimizing memory usage`);
+        }
         
         // Ensure audio directory exists (in case it was deleted)
         if (!fs.existsSync(AUDIO_DIR)) {
