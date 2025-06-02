@@ -407,23 +407,50 @@ async function startBackgroundProcessing(data: any): Promise<number> {
         await new Promise<void>((resolve, reject) => {
           // Set a write timeout to prevent hanging
           const writeTimeout = setTimeout(() => {
+            log(`Write timeout reached for ${audioFilePath} after 30 seconds`);
             reject(new Error(`Write operation timed out for large file (${bufferSize} bytes)`));
           }, 30000); // 30 second timeout
           
+          let errorOccurred = false;
+          
           // Use proper event handlers instead of callbacks for stream operations
           writeStream.on('error', (err) => {
+            if (errorOccurred) return;
+            errorOccurred = true;
             clearTimeout(writeTimeout);
-            log(`Stream error during write: ${err.message}`);
+            log(`Stream error during write to ${audioFilePath}: ${err.message}`);
             reject(err);
           });
           
           writeStream.on('close', () => {
+            if (errorOccurred) return;
             clearTimeout(writeTimeout);
-            log(`Audio file successfully written and stream closed: ${audioFilePath}`);
-            resolve();
+            log(`Audio file stream closed: ${audioFilePath}`);
+            
+            // Immediately verify the file exists and has the expected size
+            try {
+              if (fs.existsSync(audioFilePath)) {
+                const stats = fs.statSync(audioFilePath);
+                log(`File verification: ${audioFilePath} exists with ${stats.size} bytes`);
+                if (stats.size > 0) {
+                  resolve();
+                } else {
+                  reject(new Error(`File was created but has zero size: ${audioFilePath}`));
+                }
+              } else {
+                reject(new Error(`File was not created: ${audioFilePath}`));
+              }
+            } catch (verifyError) {
+              reject(new Error(`File verification failed: ${verifyError instanceof Error ? verifyError.message : String(verifyError)}`));
+            }
+          });
+          
+          writeStream.on('finish', () => {
+            log(`Write stream finished for: ${audioFilePath}`);
           });
           
           // Write in one operation
+          log(`Starting write of ${bufferSize} bytes to: ${audioFilePath}`);
           writeStream.write(audioBuffer);
           writeStream.end();
         });
