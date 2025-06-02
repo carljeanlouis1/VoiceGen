@@ -521,24 +521,35 @@ async function startBackgroundProcessing(data: any): Promise<number> {
           }
         }
         
-        // Save to storage with improved duration calculation
+        // Save to storage with improved duration calculation - use the actual saved file path
+        const savedFilename = path.basename(audioFilePath);
+        const finalAudioUrl = `/api/audio/${savedFilename}`;
+        
+        log(`Saving to storage with audioUrl: ${finalAudioUrl} for file: ${audioFilePath}`);
+        
         const audioFile = await storage.createAudioFile({
           title: data.title,
           text: data.text,
           voice: data.voice,
-          audioUrl,
+          audioUrl: finalAudioUrl,
           duration: Math.ceil(bufferSize / 24000), // Better estimate for MP3 duration at 192kbps (24KB/s)
           summary,
           artworkUrl
         });
         
-        // Update job with completion info
+        // Update job with completion info - ensure audioUrl matches the actual file
         const job = processingJobs.get(jobId);
         if (job && job.type === 'tts') {
+          // Verify the audioUrl matches the actual saved file
+          const savedFilename = path.basename(audioFilePath);
+          const correctAudioUrl = `/api/audio/${savedFilename}`;
+          
+          log(`Job #${jobId}: Updating with correct audioUrl: ${correctAudioUrl} (file: ${audioFilePath})`);
+          
           updateProcessingJob(jobId, {
             status: 'complete' as const,
             progress: 100,
-            audioUrl: audioUrl,
+            audioUrl: correctAudioUrl,
             audioFilePath: audioFilePath
           });
         }
